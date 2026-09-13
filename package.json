@@ -1,0 +1,15 @@
+{
+  "name": "plataforma-eventos-inscripciones",
+  "version": "1.0.0",
+  "description": "API REST para la gestión de eventos e inscripciones.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
