@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { consultarSesion } from '../controllers/sessions.controller.js';
+import { sessionsController } from '../config/dependencias.js';
 
 const enrutadorSesiones = Router();
 
-enrutadorSesiones.get('/', consultarSesion);
+enrutadorSesiones.post('/register', sessionsController.register);
 
 export default enrutadorSesiones;

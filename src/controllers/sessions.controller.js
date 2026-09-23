@@ -1,3 +1,15 @@
-export const consultarSesion = (solicitud, respuesta) => {
-  respuesta.status(200).json({ status: 'success', message: 'Módulo de sesiones preparado' });
-};
+export class SessionsController {
+  constructor(sessionsService) {
+    this.sessionsService = sessionsService;
+    this.register = this.register.bind(this);
+  }
+
+  async register(request, response, next) {
+    try {
+      const user = await this.sessionsService.register(request.body);
+      response.status(201).json({ status: 'success', payload: user });
+    } catch (error) {
+      next(error);
+    }
+  }
+}

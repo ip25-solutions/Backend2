@@ -9,6 +9,10 @@ export const manejarErrores = (error, solicitud, respuesta, siguiente) => {
   }
 
   if (error.code === 11000) {
+    if (error.keyPattern?.email) {
+      return respuesta.status(409).json({ status: 'error', message: 'El email ya está registrado' });
+    }
+
     return respuesta.status(409).json({ status: 'error', message: 'El recurso ya existe' });
   }
 
