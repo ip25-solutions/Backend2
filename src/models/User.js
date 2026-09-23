@@ -2,12 +2,12 @@ import mongoose from 'mongoose';
 
 const esquemaUsuario = new mongoose.Schema(
   {
-    nombre: {
+    first_name: {
       type: String,
       required: true,
       trim: true
     },
-    apellido: {
+    last_name: {
       type: String,
       required: true,
       trim: true
@@ -21,12 +21,13 @@ const esquemaUsuario = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true
+      required: true,
+      select: false
     },
-    rol: {
+    role: {
       type: String,
-      enum: ['asistente', 'organizador', 'administrador'],
-      default: 'asistente'
+      enum: ['user', 'organizer', 'admin'],
+      default: 'user'
     }
   },
   {
@@ -35,4 +36,4 @@ const esquemaUsuario = new mongoose.Schema(
   }
 );
 
-export const Usuario = mongoose.model('Usuario', esquemaUsuario);
+export const User = mongoose.model('User', esquemaUsuario);
