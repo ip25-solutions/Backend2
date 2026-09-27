@@ -7,6 +7,10 @@ export class UsersDao {
     return this.userModel.findOne({ email }).lean();
   }
 
+  async findByEmailWithPassword(email) {
+    return this.userModel.findOne({ email }).select('+password').lean();
+  }
+
   async findById(id) {
     return this.userModel.findById(id).lean();
   }

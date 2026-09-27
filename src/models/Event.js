@@ -28,7 +28,7 @@ const esquemaEvento = new mongoose.Schema(
     },
     organizador: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Usuario',
+      ref: 'User',
       default: null
     }
   },

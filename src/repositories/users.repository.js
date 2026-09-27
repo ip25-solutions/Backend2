@@ -7,6 +7,10 @@ export class UsersRepository {
     return this.usersDao.findByEmail(email);
   }
 
+  async findByEmailWithPassword(email) {
+    return this.usersDao.findByEmailWithPassword(email);
+  }
+
   async findById(id) {
     return this.usersDao.findById(id);
   }
