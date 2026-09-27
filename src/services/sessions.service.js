@@ -1,5 +1,6 @@
 import { ErrorAplicacion } from '../utils/ErrorAplicacion.js';
-import { hashPassword } from '../utils/hash.js';
+import { comparePassword, hashPassword } from '../utils/hash.js';
+import { generarToken } from '../utils/jwt.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -59,5 +60,31 @@ export class SessionsService {
     });
 
     return toPublicUser(user);
+  }
+
+  async login(data = {}) {
+    const { email, password } = data ?? {};
+
+    if (!isNonEmptyString(email) || !isNonEmptyString(password)) {
+      throw new ErrorAplicacion('Credenciales inválidas', 401);
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+      throw new ErrorAplicacion('Credenciales inválidas', 401);
+    }
+
+    const user = await this.usersRepository.findByEmailWithPassword(normalizedEmail);
+
+    if (!user || !(await comparePassword(password, user.password))) {
+      throw new ErrorAplicacion('Credenciales inválidas', 401);
+    }
+
+    return generarToken({
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role
+    });
   }
 }
