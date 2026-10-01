@@ -3,28 +3,23 @@ import {
   opcionesBaseCookieAutenticacion,
   opcionesCookieAutenticacion
 } from '../config/cookie.js';
+import { generarToken } from '../utils/jwt.js';
 
 export class SessionsController {
-  constructor(sessionsService) {
-    this.sessionsService = sessionsService;
+  constructor() {
     this.register = this.register.bind(this);
     this.login = this.login.bind(this);
     this.current = this.current.bind(this);
     this.logout = this.logout.bind(this);
   }
 
-  async register(request, response, next) {
-    try {
-      const user = await this.sessionsService.register(request.body);
-      response.status(201).json({ status: 'success', payload: user });
-    } catch (error) {
-      next(error);
-    }
+  register(request, response) {
+    response.status(201).json({ status: 'success', payload: request.user });
   }
 
-  async login(request, response, next) {
+  login(request, response, next) {
     try {
-      const token = await this.sessionsService.login(request.body);
+      const token = generarToken(request.user);
       response.cookie(COOKIE_AUTENTICACION, token, opcionesCookieAutenticacion);
       response.status(200).json({ status: 'success', message: 'Login correcto' });
     } catch (error) {

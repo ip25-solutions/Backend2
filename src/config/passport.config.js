@@ -28,26 +28,26 @@ const registerStrategy = new LocalStrategy(
     passReqToCallback: true,
     badRequestMessage: 'Faltan campos obligatorios'
   },
-  async (request, email, password, done) => {
+  async (request, _email, _password, done) => {
     try {
-      const { first_name, last_name } = request.body ?? {};
+      const { first_name, last_name, email: bodyEmail, password: bodyPassword } = request.body ?? {};
 
       if (
         !isNonEmptyString(first_name) ||
         !isNonEmptyString(last_name) ||
-        !isNonEmptyString(email) ||
-        !isNonEmptyString(password)
+        !isNonEmptyString(bodyEmail) ||
+        !isNonEmptyString(bodyPassword)
       ) {
         return done(null, false, { message: 'Faltan campos obligatorios', status: 400 });
       }
 
-      const normalizedEmail = email.trim().toLowerCase();
+      const normalizedEmail = bodyEmail.trim().toLowerCase();
 
       if (!EMAIL_PATTERN.test(normalizedEmail)) {
         return done(null, false, { message: 'El formato del email no es válido', status: 400 });
       }
 
-      if (password.length < MIN_PASSWORD_LENGTH) {
+      if (bodyPassword.length < MIN_PASSWORD_LENGTH) {
         return done(null, false, {
           message: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`,
           status: 400
@@ -60,7 +60,7 @@ const registerStrategy = new LocalStrategy(
         return done(null, false, { message: 'El email ya está registrado', status: 409 });
       }
 
-      const passwordHash = await hashPassword(password);
+      const passwordHash = await hashPassword(bodyPassword);
       const user = await usersRepository.create({
         first_name: first_name.trim(),
         last_name: last_name.trim(),
@@ -79,15 +79,18 @@ const loginStrategy = new LocalStrategy(
   {
     usernameField: 'email',
     passwordField: 'password',
+    passReqToCallback: true,
     badRequestMessage: 'Credenciales inválidas'
   },
-  async (email, password, done) => {
+  async (request, _email, _password, done) => {
     try {
-      if (!isNonEmptyString(email) || !isNonEmptyString(password)) {
+      const { email: bodyEmail, password: bodyPassword } = request.body ?? {};
+
+      if (!isNonEmptyString(bodyEmail) || !isNonEmptyString(bodyPassword)) {
         return done(null, false, { message: 'Credenciales inválidas', status: 401 });
       }
 
-      const normalizedEmail = email.trim().toLowerCase();
+      const normalizedEmail = bodyEmail.trim().toLowerCase();
 
       if (!EMAIL_PATTERN.test(normalizedEmail)) {
         return done(null, false, { message: 'Credenciales inválidas', status: 401 });
@@ -95,7 +98,7 @@ const loginStrategy = new LocalStrategy(
 
       const user = await usersRepository.findByEmailWithPassword(normalizedEmail);
 
-      if (!user || !(await comparePassword(password, user.password))) {
+      if (!user || !(await comparePassword(bodyPassword, user.password))) {
         return done(null, false, { message: 'Credenciales inválidas', status: 401 });
       }
 

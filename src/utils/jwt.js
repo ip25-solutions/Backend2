@@ -11,5 +11,3 @@ const obtenerJwtSecret = () => {
 
 export const generarToken = (payload) =>
   jwt.sign(payload, obtenerJwtSecret(), { expiresIn: entorno.jwtExpiresIn });
-
-export const verificarToken = (token) => jwt.verify(token, obtenerJwtSecret());
