@@ -16,7 +16,7 @@ const servicioEventos = new ServicioEventos(repositorioEventos);
 export const controladorEventos = new ControladorEventos(servicioEventos);
 
 const usersDao = new UsersDao(User);
-const usersRepository = new UsersRepository(usersDao);
+export const usersRepository = new UsersRepository(usersDao);
 const sessionsService = new SessionsService(usersRepository);
 
 export const sessionsController = new SessionsController(sessionsService);
