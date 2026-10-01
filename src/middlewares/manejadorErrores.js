@@ -1,4 +1,8 @@
 export const manejarErrores = (error, solicitud, respuesta, siguiente) => {
+  if (error.type === 'entity.parse.failed') {
+    return respuesta.status(400).json({ status: 'error', message: 'JSON mal formado' });
+  }
+
   if (error.name === 'ValidationError') {
     const detalles = Object.values(error.errors).map((detalle) => detalle.message);
     return respuesta.status(400).json({ status: 'error', message: 'Datos inválidos', detalles });
