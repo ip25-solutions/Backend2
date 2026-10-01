@@ -1,6 +1,6 @@
 # Plataforma de Eventos e Inscripciones
 
-API REST para gestionar eventos e inscripciones. Esta tercera pre-entrega incorpora registro y login seguros, autenticación mediante JWT almacenado en una cookie HTTP Only y una ruta para consultar la sesión actual.
+API REST para gestionar eventos e inscripciones. Esta cuarta pre-entrega centraliza el registro, el login y la consulta de la sesión actual mediante estrategias de Passport.js, manteniendo JWT en una cookie HTTP Only y el mismo contrato HTTP de la etapa anterior.
 
 ## Tecnologías
 
@@ -8,6 +8,7 @@ API REST para gestionar eventos e inscripciones. Esta tercera pre-entrega incorp
 - MongoDB y Mongoose
 - bcrypt
 - JSON Web Token
+- Passport.js, passport-local y passport-jwt
 - cookie-parser
 - dotenv
 - JavaScript con módulos ESM
@@ -32,6 +33,14 @@ JWT_EXPIRES_IN=1h
 
 Reemplazá los marcadores de `MONGO_URL` por los datos de tu clúster de MongoDB Atlas y `JWT_SECRET` por un secreto robusto en el archivo `.env`. Este archivo está excluido del repositorio y nunca se deben guardar credenciales reales en `.env.example`.
 
+| Variable | Descripción | Valor de ejemplo |
+| --- | --- | --- |
+| `PORT` | Puerto HTTP de la aplicación. | `8080` |
+| `NODE_ENV` | Entorno de ejecución; en `production` activa cookies `secure`. | `development` |
+| `MONGO_URL` | Cadena de conexión de MongoDB. | URI de MongoDB Atlas |
+| `JWT_SECRET` | Secreto utilizado para firmar y validar los JWT. | Clave local sin datos reales |
+| `JWT_EXPIRES_IN` | Vigencia del JWT aceptada por jsonwebtoken. | `1h` |
+
 ## Ejecución
 
 Modo desarrollo:
@@ -48,35 +57,62 @@ npm start
 
 El servidor se conecta a MongoDB antes de comenzar a recibir solicitudes.
 
+Pruebas automatizadas:
+
+```bash
+npm test
+```
+
+Las pruebas ejecutan el flujo de sesiones con un repositorio simulado, por lo que no escriben datos en MongoDB.
+
 ## Estructura
 
 ```text
 src/
 ├── app.js
 ├── server.js
-├── config/          # Entorno, conexión e inyección de dependencias
+├── config/          # Entorno, Passport, cookies, conexión y dependencias
 ├── routes/          # Definición de endpoints
-├── controllers/     # Entrada y salida HTTP
-├── services/        # Validaciones y reglas de negocio
+├── controllers/     # Entrada y salida HTTP; JWT y cookie tras el login
+├── services/        # Reglas de negocio de eventos
 ├── repositories/    # Abstracción de acceso a datos
 ├── dao/             # Operaciones directas con Mongoose
 ├── models/          # Esquemas y modelos de MongoDB
-├── middlewares/     # Manejo centralizado de solicitudes y errores
-└── utils/           # Hash con bcrypt y firma/verificación de JWT
+├── middlewares/     # Adaptación de Passport y manejo centralizado de errores
+└── utils/           # Hash con bcrypt y firma de JWT
+test/
+└── sessions.passport.test.js
 ```
 
 El registro y el login respetan el siguiente flujo:
 
 ```text
-Router → Controller → Service → Repository → DAO → Mongoose → MongoDB
+Router → Passport → Estrategia → Repository → DAO → Mongoose → MongoDB → Controller → Response
 ```
 
 La lógica de autenticación se distribuye de esta manera:
 
+- `config/passport.config.js`: centraliza las estrategias `register`, `login` y `current`.
+- `app.js`: ejecuta una única configuración e inicializa Passport con `passport.initialize()`.
+- `middlewares/passport.middleware.js`: adapta los fallos de Passport al contrato JSON de la API.
+- `controllers/sessions.controller.js`: genera el JWT después del login y administra la cookie.
 - `utils/hash.js`: hashea y compara contraseñas con bcrypt.
-- `utils/jwt.js`: firma y verifica tokens usando las variables de entorno.
-- `middlewares/auth.middleware.js`: valida la cookie y asigna el payload a `request.user`.
+- `utils/jwt.js`: firma tokens usando las variables de entorno.
 - `config/cookie.js`: centraliza el nombre y las opciones de la cookie.
+
+## Estrategias de Passport
+
+Todas las estrategias se registran en `src/config/passport.config.js`; `app.js` no contiene su implementación.
+
+| Estrategia | Tipo | Responsabilidad |
+| --- | --- | --- |
+| `register` | Local | Valida los campos, normaliza el email, comprueba unicidad, hashea la contraseña y crea el usuario con el rol predeterminado. |
+| `login` | Local | Normaliza el email, busca el hash y valida la contraseña con bcrypt sin revelar qué credencial falló. |
+| `current` | JWT | Extrae el token de la cookie `currentUser`, valida firma y expiración, y asigna `{ id, email, role }` a `request.user`. |
+
+Las estrategias solo autentican o registran al usuario. En particular, `login` no genera el JWT: esa responsabilidad permanece en el controller, que también configura la cookie HTTP Only. `logout` elimina la cookie directamente y no pasa por Passport.
+
+La función `configurarPassport()` concentra el registro de estrategias. Para incorporar providers externos como Google o GitHub se agregan sus estrategias en ese archivo y sus rutas correspondientes, sin modificar la inicialización de `app.js`.
 
 ## Registro de usuarios
 
@@ -148,7 +184,7 @@ Email repetido (`409 Conflict`):
 
 ### `POST /api/sessions/login`
 
-Valida el email y la contraseña. Si son correctos, firma un JWT con `id`, `email` y `role`, y lo guarda en la cookie `currentUser`. La cookie utiliza `httpOnly`, `sameSite: 'lax'`, una duración de una hora y `secure` únicamente en producción.
+La estrategia `login` valida el email y la contraseña. Si son correctos, el controller firma un JWT con `id`, `email` y `role`, y lo guarda en la cookie `currentUser`. La cookie utiliza `httpOnly`, `sameSite: 'lax'`, una duración de una hora y `secure` únicamente en producción.
 
 Solicitud:
 
@@ -174,7 +210,7 @@ El encabezado `Set-Cookie` contiene `currentUser`. Si el email no existe, falta 
 
 ### `GET /api/sessions/current`
 
-Requiere una cookie válida y devuelve exclusivamente los datos incluidos en el JWT.
+Utiliza la estrategia `current`: requiere una cookie válida, deja el usuario autenticado en `request.user` y devuelve exclusivamente `id`, `email` y `role`.
 
 Solicitud:
 
@@ -220,6 +256,12 @@ Respuesta exitosa (`200 OK`):
 ```
 
 ## Comprobaciones antes de entregar
+
+Ejecutá primero la suite automatizada:
+
+```bash
+npm test
+```
 
 1. Registrá un usuario y confirmá el código `201`.
 2. Iniciá sesión y comprobá que la respuesta incluya la cookie `currentUser` con `HttpOnly`.
