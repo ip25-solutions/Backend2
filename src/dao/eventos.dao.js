@@ -3,8 +3,20 @@ export class EventosDao {
     this.modeloEvento = modeloEvento;
   }
 
-  async obtenerTodos() {
-    return this.modeloEvento.find().sort({ date: 1 }).lean();
+  async obtenerTodos({ filtros, orden, page, limit }) {
+    const consulta = this.modeloEvento
+      .find(filtros)
+      .sort(orden)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    const [data, total] = await Promise.all([
+      consulta,
+      this.modeloEvento.countDocuments(filtros)
+    ]);
+
+    return { data, total };
   }
 
   async obtenerPorId(id) {

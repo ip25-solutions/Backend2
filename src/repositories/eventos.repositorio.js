@@ -3,8 +3,8 @@ export class RepositorioEventos {
     this.eventosDao = eventosDao;
   }
 
-  async obtenerTodos() {
-    return this.eventosDao.obtenerTodos();
+  async obtenerTodos(opciones) {
+    return this.eventosDao.obtenerTodos(opciones);
   }
 
   async obtenerPorId(id) {

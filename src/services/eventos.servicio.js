@@ -4,6 +4,106 @@ import { ROLES } from '../config/permisos.js';
 
 const camposDeTextoObligatorios = ['title', 'description', 'category', 'location'];
 const estadosValidos = new Set(Object.values(ESTADOS_EVENTO));
+const camposOrdenables = new Set(['date', 'price', 'title', 'capacity']);
+const LIMITE_PREDETERMINADO = 10;
+const LIMITE_MAXIMO = 100;
+
+const escaparExpresionRegular = (valor) => valor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const convertirEnteroPositivo = (valor, nombre, valorPredeterminado, maximo) => {
+  if (valor === undefined) {
+    return valorPredeterminado;
+  }
+
+  const numero = Number(valor);
+
+  if (!Number.isInteger(numero) || numero <= 0 || (maximo && numero > maximo)) {
+    throw new ErrorAplicacion(`El parámetro ${nombre} no es válido`, 400);
+  }
+
+  return numero;
+};
+
+const convertirFecha = (valor, nombre) => {
+  if (valor === undefined) return undefined;
+
+  if (typeof valor !== 'string') {
+    throw new ErrorAplicacion(`El parámetro ${nombre} no es una fecha válida`, 400);
+  }
+
+  const fecha = new Date(valor);
+
+  if (Number.isNaN(fecha.getTime())) {
+    throw new ErrorAplicacion(`El parámetro ${nombre} no es una fecha válida`, 400);
+  }
+
+  return fecha;
+};
+
+const prepararListado = (query) => {
+  const page = convertirEnteroPositivo(query.page, 'page', 1);
+  const limit = convertirEnteroPositivo(query.limit, 'limit', LIMITE_PREDETERMINADO, LIMITE_MAXIMO);
+  const filtros = {};
+
+  if (query.status !== undefined) {
+    if (typeof query.status !== 'string' || !estadosValidos.has(query.status)) {
+      throw new ErrorAplicacion('El filtro status no es válido', 400);
+    }
+    filtros.status = query.status;
+  }
+
+  if (query.category !== undefined && typeof query.category !== 'string') {
+    throw new ErrorAplicacion('El filtro category no es válido', 400);
+  }
+
+  if (query.category) {
+    filtros.category = query.category.trim();
+  }
+
+  if (query.location !== undefined && typeof query.location !== 'string') {
+    throw new ErrorAplicacion('El filtro location no es válido', 400);
+  }
+
+  if (query.location) {
+    filtros.location = {
+      $regex: escaparExpresionRegular(query.location.trim()),
+      $options: 'i'
+    };
+  }
+
+  const dateFrom = convertirFecha(query.dateFrom, 'dateFrom');
+  const dateTo = convertirFecha(query.dateTo, 'dateTo');
+
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    throw new ErrorAplicacion('dateFrom no puede ser posterior a dateTo', 400);
+  }
+
+  if (dateFrom || dateTo) {
+    filtros.date = {};
+    if (dateFrom) filtros.date.$gte = dateFrom;
+    if (dateTo) filtros.date.$lte = dateTo;
+  }
+
+  const sort = query.sort ?? 'date';
+
+  if (typeof sort !== 'string') {
+    throw new ErrorAplicacion('El parámetro sort no es válido', 400);
+  }
+
+  const descendente = sort.startsWith('-');
+  const campoOrden = descendente ? sort.slice(1) : sort;
+
+  if (!camposOrdenables.has(campoOrden)) {
+    throw new ErrorAplicacion('El parámetro sort no es válido', 400);
+  }
+
+  return {
+    filtros,
+    orden: { [campoOrden]: descendente ? -1 : 1 },
+    page,
+    limit
+  };
+};
 
 const validarCreacion = (datosEvento) => {
   const faltanCamposDeTexto = camposDeTextoObligatorios.some(
@@ -52,8 +152,17 @@ export class ServicioEventos {
     this.repositorioEventos = repositorioEventos;
   }
 
-  async listar() {
-    return this.repositorioEventos.obtenerTodos();
+  async listar(query = {}) {
+    const opciones = prepararListado(query);
+    const { data, total } = await this.repositorioEventos.obtenerTodos(opciones);
+
+    return {
+      data,
+      page: opciones.page,
+      limit: opciones.limit,
+      total,
+      totalPages: Math.ceil(total / opciones.limit)
+    };
   }
 
   async obtenerPorId(id) {

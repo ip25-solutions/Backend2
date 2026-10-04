@@ -10,8 +10,8 @@ export class ControladorEventos {
 
   async obtenerTodos(solicitud, respuesta, siguiente) {
     try {
-      const eventos = await this.servicioEventos.listar();
-      respuesta.status(200).json({ status: 'success', payload: eventos });
+      const resultado = await this.servicioEventos.listar(solicitud.query);
+      respuesta.status(200).json({ status: 'success', ...resultado });
     } catch (error) {
       siguiente(error);
     }

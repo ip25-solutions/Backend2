@@ -13,10 +13,18 @@ let server;
 let baseUrl;
 let ultimoEventoCreado;
 let eventoPersistido;
+let ultimaConsultaListado;
 
 controladorEventos.servicioEventos.repositorioEventos.crear = async (datosEvento) => {
   ultimoEventoCreado = datosEvento;
   return { id: 'evento-1', ...datosEvento };
+};
+controladorEventos.servicioEventos.repositorioEventos.obtenerTodos = async (opciones) => {
+  ultimaConsultaListado = opciones;
+  return {
+    data: [{ id: 'evento-listado', title: 'Workshop Node', status: 'published' }],
+    total: 6
+  };
 };
 controladorEventos.servicioEventos.repositorioEventos.obtenerPorId = async (id) =>
   eventoPersistido?.id === id ? eventoPersistido : null;
@@ -56,6 +64,8 @@ const crearEvento = (cookie, body = datosEvento) =>
     },
     body: JSON.stringify(body)
   });
+
+const listarEventos = (query = '') => fetch(`${baseUrl}/api/events${query}`);
 
 const modificarEvento = (id, cookie, body = { title: 'Evento actualizado' }) =>
   fetch(`${baseUrl}/api/events/${id}`, {
@@ -146,6 +156,39 @@ test('crear un evento con precio negativo responde 400', async () => {
 
   assert.equal(response.status, 400);
   assert.equal((await response.json()).message, 'El precio no puede ser negativo');
+});
+
+test('listar eventos aplica filtros, paginación y ordenamiento', async () => {
+  const response = await listarEventos(
+    '?status=published&category=workshop&location=Montevideo&dateFrom=2026-11-01&dateTo=2026-11-30&page=2&limit=5&sort=date'
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(body, {
+    status: 'success',
+    data: [{ id: 'evento-listado', title: 'Workshop Node', status: 'published' }],
+    page: 2,
+    limit: 5,
+    total: 6,
+    totalPages: 2
+  });
+  assert.equal(ultimaConsultaListado.filtros.status, 'published');
+  assert.equal(ultimaConsultaListado.filtros.category, 'workshop');
+  assert.deepEqual(ultimaConsultaListado.filtros.location, {
+    $regex: 'Montevideo',
+    $options: 'i'
+  });
+  assert.equal(ultimaConsultaListado.filtros.date.$gte.toISOString(), '2026-11-01T00:00:00.000Z');
+  assert.equal(ultimaConsultaListado.filtros.date.$lte.toISOString(), '2026-11-30T00:00:00.000Z');
+  assert.deepEqual(ultimaConsultaListado.orden, { date: 1 });
+});
+
+test('listar eventos rechaza filtros y paginación inválidos', async () => {
+  for (const query of ['?status=unknown', '?page=0', '?limit=101', '?sort=createdAt']) {
+    const response = await listarEventos(query);
+    assert.equal(response.status, 400);
+  }
 });
 
 test('modificar un evento privado sin sesión responde 401', async () => {
