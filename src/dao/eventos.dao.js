@@ -4,7 +4,7 @@ export class EventosDao {
   }
 
   async obtenerTodos() {
-    return this.modeloEvento.find().sort({ fecha: 1 }).lean();
+    return this.modeloEvento.find().sort({ date: 1 }).lean();
   }
 
   async obtenerPorId(id) {

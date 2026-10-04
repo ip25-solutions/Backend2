@@ -28,10 +28,7 @@ export class ControladorEventos {
 
   async crear(solicitud, respuesta, siguiente) {
     try {
-      const evento = await this.servicioEventos.crear({
-        ...solicitud.body,
-        organizador: solicitud.user.id
-      });
+      const evento = await this.servicioEventos.crear(solicitud.body, solicitud.user.id);
       respuesta.status(201).json({ status: 'success', payload: evento });
     } catch (error) {
       siguiente(error);

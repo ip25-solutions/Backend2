@@ -1,35 +1,51 @@
 import mongoose from 'mongoose';
+import { ESTADOS_EVENTO } from '../config/eventos.js';
 
 const esquemaEvento = new mongoose.Schema(
   {
-    titulo: {
+    title: {
       type: String,
       required: true,
       trim: true
     },
-    descripcion: {
+    description: {
       type: String,
       required: true,
       trim: true
     },
-    fecha: {
+    category: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    date: {
       type: Date,
       required: true
     },
-    ubicacion: {
+    location: {
       type: String,
       required: true,
       trim: true
     },
-    capacidad: {
+    capacity: {
       type: Number,
       required: true,
       min: 1
     },
-    organizador: {
+    price: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    status: {
+      type: String,
+      enum: Object.values(ESTADOS_EVENTO),
+      default: ESTADOS_EVENTO.BORRADOR
+    },
+    organizer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      default: null
+      required: true
     }
   },
   {
@@ -38,4 +54,4 @@ const esquemaEvento = new mongoose.Schema(
   }
 );
 
-export const Evento = mongoose.model('Evento', esquemaEvento);
+export const Event = mongoose.model('Event', esquemaEvento);

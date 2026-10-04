@@ -4,12 +4,12 @@ import { UsersController } from '../controllers/users.controller.js';
 import { UsersDao } from '../dao/users.dao.js';
 import { EventosDao } from '../dao/eventos.dao.js';
 import { User } from '../models/User.js';
-import { Evento } from '../models/Event.js';
+import { Event } from '../models/Event.js';
 import { UsersRepository } from '../repositories/users.repository.js';
 import { RepositorioEventos } from '../repositories/eventos.repositorio.js';
 import { ServicioEventos } from '../services/eventos.servicio.js';
 
-const eventosDao = new EventosDao(Evento);
+const eventosDao = new EventosDao(Event);
 const repositorioEventos = new RepositorioEventos(eventosDao);
 const servicioEventos = new ServicioEventos(repositorioEventos);
 
