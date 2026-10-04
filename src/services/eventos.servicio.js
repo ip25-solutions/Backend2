@@ -5,6 +5,15 @@ import { ROLES } from '../config/permisos.js';
 const camposDeTextoObligatorios = ['title', 'description', 'category', 'location'];
 const estadosValidos = new Set(Object.values(ESTADOS_EVENTO));
 const camposOrdenables = new Set(['date', 'price', 'title', 'capacity']);
+const camposActualizables = new Set([
+  'title',
+  'description',
+  'category',
+  'date',
+  'location',
+  'capacity',
+  'price'
+]);
 const LIMITE_PREDETERMINADO = 10;
 const LIMITE_MAXIMO = 100;
 
@@ -137,6 +146,56 @@ const validarCreacion = (datosEvento) => {
   }
 };
 
+const validarActualizacion = (datosEvento) => {
+  const campos = Object.keys(datosEvento);
+
+  if (!campos.length) {
+    throw new ErrorAplicacion('No se enviaron campos para actualizar', 400);
+  }
+
+  const campoNoPermitido = campos.find((campo) => !camposActualizables.has(campo));
+
+  if (campoNoPermitido) {
+    throw new ErrorAplicacion(`El campo ${campoNoPermitido} no puede modificarse`, 400);
+  }
+
+  for (const campo of camposDeTextoObligatorios) {
+    if (
+      campo in datosEvento &&
+      (typeof datosEvento[campo] !== 'string' || !datosEvento[campo].trim())
+    ) {
+      throw new ErrorAplicacion(`El campo ${campo} no puede estar vacío`, 400);
+    }
+  }
+
+  if ('date' in datosEvento) {
+    const date = new Date(datosEvento.date);
+    if (Number.isNaN(date.getTime())) {
+      throw new ErrorAplicacion('La fecha del evento no es válida', 400);
+    }
+    if (date <= new Date()) {
+      throw new ErrorAplicacion('La fecha del evento debe ser futura', 400);
+    }
+  }
+
+  if (
+    'capacity' in datosEvento &&
+    (!Number.isFinite(datosEvento.capacity) || datosEvento.capacity <= 0)
+  ) {
+    throw new ErrorAplicacion('La capacidad debe ser mayor que cero', 400);
+  }
+
+  if ('price' in datosEvento && (!Number.isFinite(datosEvento.price) || datosEvento.price < 0)) {
+    throw new ErrorAplicacion('El precio no puede ser negativo', 400);
+  }
+};
+
+const validarEventoEditable = (evento) => {
+  if (evento.status === ESTADOS_EVENTO.CANCELADO) {
+    throw new ErrorAplicacion('Los eventos cancelados no pueden modificarse', 400);
+  }
+};
+
 const validarPropiedad = (evento, usuario) => {
   if (usuario.role === ROLES.ADMINISTRADOR) {
     return;
@@ -189,6 +248,8 @@ export class ServicioEventos {
   async actualizar(id, datosEvento, usuario) {
     const eventoExistente = await this.obtenerPorId(id);
     validarPropiedad(eventoExistente, usuario);
+    validarEventoEditable(eventoExistente);
+    validarActualizacion(datosEvento);
 
     const evento = await this.repositorioEventos.actualizar(id, datosEvento);
 
@@ -199,11 +260,24 @@ export class ServicioEventos {
     return evento;
   }
 
-  async eliminar(id, usuario) {
+  async cambiarEstado(id, nuevoEstado, usuario) {
     const eventoExistente = await this.obtenerPorId(id);
     validarPropiedad(eventoExistente, usuario);
+    validarEventoEditable(eventoExistente);
 
-    const evento = await this.repositorioEventos.eliminar(id);
+    if (!estadosValidos.has(nuevoEstado)) {
+      throw new ErrorAplicacion('El estado del evento no es válido', 400);
+    }
+
+    if (
+      nuevoEstado === ESTADOS_EVENTO.PUBLICADO &&
+      (eventoExistente.status === ESTADOS_EVENTO.FINALIZADO ||
+        new Date(eventoExistente.date) <= new Date())
+    ) {
+      throw new ErrorAplicacion('No se puede publicar un evento finalizado', 400);
+    }
+
+    const evento = await this.repositorioEventos.actualizarEstado(id, nuevoEstado);
 
     if (!evento) {
       throw new ErrorAplicacion('Evento no encontrado', 404);

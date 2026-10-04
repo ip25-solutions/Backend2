@@ -5,7 +5,7 @@ export class ControladorEventos {
     this.obtenerPorId = this.obtenerPorId.bind(this);
     this.crear = this.crear.bind(this);
     this.actualizar = this.actualizar.bind(this);
-    this.eliminar = this.eliminar.bind(this);
+    this.cambiarEstado = this.cambiarEstado.bind(this);
   }
 
   async obtenerTodos(solicitud, respuesta, siguiente) {
@@ -48,10 +48,14 @@ export class ControladorEventos {
     }
   }
 
-  async eliminar(solicitud, respuesta, siguiente) {
+  async cambiarEstado(solicitud, respuesta, siguiente) {
     try {
-      await this.servicioEventos.eliminar(solicitud.params.id, solicitud.user);
-      respuesta.status(200).json({ status: 'success', message: 'Evento eliminado' });
+      const evento = await this.servicioEventos.cambiarEstado(
+        solicitud.params.id,
+        solicitud.body.status,
+        solicitud.user
+      );
+      respuesta.status(200).json({ status: 'success', payload: evento });
     } catch (error) {
       siguiente(error);
     }

@@ -19,7 +19,7 @@ export class RepositorioEventos {
     return this.eventosDao.actualizar(id, datosEvento);
   }
 
-  async eliminar(id) {
-    return this.eventosDao.eliminar(id);
+  async actualizarEstado(id, status) {
+    return this.eventosDao.actualizarEstado(id, status);
   }
 }

@@ -34,7 +34,9 @@ export class EventosDao {
       .lean();
   }
 
-  async eliminar(id) {
-    return this.modeloEvento.findByIdAndDelete(id).lean();
+  async actualizarEstado(id, status) {
+    return this.modeloEvento
+      .findByIdAndUpdate(id, { status }, { returnDocument: 'after', runValidators: true })
+      .lean();
   }
 }

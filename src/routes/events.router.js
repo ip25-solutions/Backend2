@@ -20,11 +20,11 @@ enrutadorEventos.put(
   autorizar(...PERMISOS.MODIFICAR_EVENTOS),
   controladorEventos.actualizar
 );
-enrutadorEventos.delete(
-  '/:id',
+enrutadorEventos.patch(
+  '/:id/status',
   autenticar,
   autorizar(...PERMISOS.MODIFICAR_EVENTOS),
-  controladorEventos.eliminar
+  controladorEventos.cambiarEstado
 );
 
 export default enrutadorEventos;

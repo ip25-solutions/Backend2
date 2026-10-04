@@ -33,11 +33,10 @@ controladorEventos.servicioEventos.repositorioEventos.actualizar = async (id, ca
   eventoPersistido = { ...eventoPersistido, ...cambios };
   return eventoPersistido;
 };
-controladorEventos.servicioEventos.repositorioEventos.eliminar = async (id) => {
+controladorEventos.servicioEventos.repositorioEventos.actualizarEstado = async (id, status) => {
   if (eventoPersistido?.id !== id) return null;
-  const eventoEliminado = eventoPersistido;
-  eventoPersistido = null;
-  return eventoEliminado;
+  eventoPersistido = { ...eventoPersistido, status };
+  return eventoPersistido;
 };
 
 const datosEvento = {
@@ -77,10 +76,14 @@ const modificarEvento = (id, cookie, body = { title: 'Evento actualizado' }) =>
     body: JSON.stringify(body)
   });
 
-const eliminarEvento = (id, cookie) =>
-  fetch(`${baseUrl}/api/events/${id}`, {
-    method: 'DELETE',
-    headers: cookie ? { cookie } : {}
+const cambiarEstado = (id, status, cookie) =>
+  fetch(`${baseUrl}/api/events/${id}/status`, {
+    method: 'PATCH',
+    headers: {
+      'content-type': 'application/json',
+      ...(cookie ? { cookie } : {})
+    },
+    body: JSON.stringify({ status })
   });
 
 before(() => {
@@ -214,27 +217,102 @@ test('un organizer no puede modificar un evento ajeno', async () => {
   assert.equal(eventoPersistido.title, 'Original');
 });
 
-test('un organizer puede modificar y eliminar sus propios eventos', async () => {
+test('un organizer puede modificar y cancelar sus propios eventos', async () => {
   const organizerId = 'organizer-propietario';
   const cookie = cookiePara(ROLES.ORGANIZADOR, organizerId);
-  eventoPersistido = { id: 'evento-propio', title: 'Original', organizer: organizerId };
+  eventoPersistido = {
+    id: 'evento-propio',
+    title: 'Original',
+    organizer: organizerId,
+    status: 'published',
+    date: datosEvento.date
+  };
 
   const updateResponse = await modificarEvento(eventoPersistido.id, cookie);
   assert.equal(updateResponse.status, 200);
   assert.equal((await updateResponse.json()).payload.title, 'Evento actualizado');
 
-  const deleteResponse = await eliminarEvento(eventoPersistido.id, cookie);
-  assert.equal(deleteResponse.status, 200);
-  assert.equal(eventoPersistido, null);
+  const statusResponse = await cambiarEstado(eventoPersistido.id, 'cancelled', cookie);
+  assert.equal(statusResponse.status, 200);
+  assert.equal((await statusResponse.json()).payload.status, 'cancelled');
+  assert.equal(eventoPersistido.status, 'cancelled');
 });
 
-test('un admin puede modificar y eliminar cualquier evento', async () => {
+test('un admin puede modificar cualquier evento', async () => {
   const cookie = cookiePara(ROLES.ADMINISTRADOR, 'admin-1');
-  eventoPersistido = { id: 'evento-de-otro', title: 'Original', organizer: 'organizer-2' };
+  eventoPersistido = {
+    id: 'evento-de-otro',
+    title: 'Original',
+    organizer: 'organizer-2',
+    status: 'draft',
+    date: datosEvento.date
+  };
 
   const updateResponse = await modificarEvento(eventoPersistido.id, cookie);
   assert.equal(updateResponse.status, 200);
+});
 
-  const deleteResponse = await eliminarEvento(eventoPersistido.id, cookie);
-  assert.equal(deleteResponse.status, 200);
+test('un evento cancelado no puede modificarse ni cambiar de estado', async () => {
+  const organizerId = 'organizer-1';
+  const cookie = cookiePara(ROLES.ORGANIZADOR, organizerId);
+  eventoPersistido = {
+    id: 'evento-cancelado',
+    title: 'Cancelado',
+    organizer: organizerId,
+    status: 'cancelled',
+    date: datosEvento.date
+  };
+
+  const updateResponse = await modificarEvento(eventoPersistido.id, cookie);
+  assert.equal(updateResponse.status, 400);
+  assert.equal((await updateResponse.json()).message, 'Los eventos cancelados no pueden modificarse');
+
+  const statusResponse = await cambiarEstado(eventoPersistido.id, 'published', cookie);
+  assert.equal(statusResponse.status, 400);
+  assert.equal((await statusResponse.json()).message, 'Los eventos cancelados no pueden modificarse');
+});
+
+test('un evento finalizado no puede volver a publicarse', async () => {
+  const organizerId = 'organizer-1';
+  eventoPersistido = {
+    id: 'evento-finalizado',
+    organizer: organizerId,
+    status: 'finished',
+    date: datosEvento.date
+  };
+
+  const response = await cambiarEstado(
+    eventoPersistido.id,
+    'published',
+    cookiePara(ROLES.ORGANIZADOR, organizerId)
+  );
+
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).message, 'No se puede publicar un evento finalizado');
+});
+
+test('consultar un evento inexistente responde 404', async () => {
+  eventoPersistido = null;
+  const response = await fetch(`${baseUrl}/api/events/no-existe`);
+
+  assert.equal(response.status, 404);
+  assert.deepEqual(await response.json(), { status: 'error', message: 'Evento no encontrado' });
+});
+
+test('DELETE no elimina eventos físicamente', async () => {
+  const organizerId = 'organizer-1';
+  eventoPersistido = {
+    id: 'evento-conservado',
+    organizer: organizerId,
+    status: 'published',
+    date: datosEvento.date
+  };
+
+  const response = await fetch(`${baseUrl}/api/events/${eventoPersistido.id}`, {
+    method: 'DELETE',
+    headers: { cookie: cookiePara(ROLES.ORGANIZADOR, organizerId) }
+  });
+
+  assert.equal(response.status, 404);
+  assert.equal(eventoPersistido.id, 'evento-conservado');
 });
