@@ -1,6 +1,6 @@
 # Plataforma de Eventos e Inscripciones
 
-API REST para gestionar eventos e inscripciones. Esta cuarta pre-entrega centraliza el registro, el login y la consulta de la sesión actual mediante estrategias de Passport.js, manteniendo JWT en una cookie HTTP Only y el mismo contrato HTTP de la etapa anterior.
+API REST para gestionar eventos e inscripciones. Esta quinta pre-entrega incorpora autorización por roles, protección de rutas y validación de propiedad sobre los eventos, manteniendo el JWT en una cookie HTTP Only.
 
 ## Tecnologías
 
@@ -63,7 +63,7 @@ Pruebas automatizadas:
 npm test
 ```
 
-Las pruebas ejecutan el flujo de sesiones con un repositorio simulado, por lo que no escriben datos en MongoDB.
+Las pruebas ejecutan los flujos de sesiones, eventos y administración con repositorios simulados, por lo que no escriben datos en MongoDB.
 
 ## Estructura
 
@@ -81,7 +81,10 @@ src/
 ├── middlewares/     # Adaptación de Passport y manejo centralizado de errores
 └── utils/           # Hash con bcrypt y firma de JWT
 test/
-└── sessions.passport.test.js
+├── authorization.middleware.test.js
+├── events.authorization.test.js
+├── sessions.passport.test.js
+└── users.authorization.test.js
 ```
 
 El registro y el login respetan el siguiente flujo:
@@ -95,6 +98,8 @@ La lógica de autenticación se distribuye de esta manera:
 - `config/passport.config.js`: centraliza las estrategias `register`, `login` y `current`.
 - `app.js`: ejecuta una única configuración e inicializa Passport con `passport.initialize()`.
 - `middlewares/passport.middleware.js`: adapta los fallos de Passport al contrato JSON de la API.
+- `middlewares/auth.middleware.js`: valida el JWT de la cookie y completa `request.user`.
+- `middlewares/authorize.middleware.js`: compara el rol autenticado con los roles permitidos.
 - `controllers/sessions.controller.js`: genera el JWT después del login y administra la cookie.
 - `utils/hash.js`: hashea y compara contraseñas con bcrypt.
 - `utils/jwt.js`: firma tokens usando las variables de entorno.
@@ -113,6 +118,35 @@ Todas las estrategias se registran en `src/config/passport.config.js`; `app.js` 
 Las estrategias solo autentican o registran al usuario. En particular, `login` no genera el JWT: esa responsabilidad permanece en el controller, que también configura la cookie HTTP Only. `logout` elimina la cookie directamente y no pasa por Passport.
 
 La función `configurarPassport()` concentra el registro de estrategias. Para incorporar providers externos como Google o GitHub se agregan sus estrategias en ese archivo y sus rutas correspondientes, sin modificar la inicialización de `app.js`.
+
+## Roles y autorización
+
+El modelo admite los roles `user`, `organizer` y `admin`; el registro público siempre crea usuarios con el rol `user` e ignora cualquier `role` incluido en el body.
+
+| Acción | user | organizer | admin |
+| --- | :---: | :---: | :---: |
+| Consultar eventos publicados | ✅ | ✅ | ✅ |
+| Crear eventos | ❌ | ✅ | ✅ |
+| Modificar o eliminar eventos propios | ❌ | ✅ | ✅ |
+| Modificar o eliminar cualquier evento | ❌ | ❌ | ✅ |
+| Ver todos los usuarios | ❌ | ❌ | ✅ |
+
+Las consultas de eventos son públicas y, al no existir todavía un estado de borrador, todos los eventos almacenados se consideran publicados. Las rutas privadas ejecutan primero `autenticar`, que valida la cookie y carga el usuario, y luego `autorizar`, que comprueba el rol. En las modificaciones de eventos existe además una validación de propiedad: un organizer solo puede operar sobre recursos cuyo campo `organizador` coincida con su identificador; un admin puede operar sobre cualquiera.
+
+### Diferencia entre 401 y 403
+
+- `401 Unauthorized`: no existe una cookie de sesión o el JWT es inválido o expiró. La respuesta es `{ "status": "error", "message": "No autenticado" }`.
+- `403 Forbidden`: el JWT es válido, pero el rol o la propiedad del recurso no permiten la acción. La respuesta es `{ "status": "error", "message": "No tenés permisos para realizar esta acción" }`.
+
+### Rutas protegidas
+
+| Método | Ruta | Acceso |
+| --- | --- | --- |
+| GET | `/api/sessions/current` | Cualquier usuario autenticado |
+| POST | `/api/events` | organizer o admin |
+| PUT | `/api/events/:id` | organizer propietario o admin |
+| DELETE | `/api/events/:id` | organizer propietario o admin |
+| GET | `/api/users` | Solo admin |
 
 ## Registro de usuarios
 
@@ -293,6 +327,7 @@ El valor de `password` debe comenzar con el formato de hash de bcrypt y nunca co
 | POST | `/api/events` | Crea un evento. |
 | PUT | `/api/events/:id` | Actualiza un evento. |
 | DELETE | `/api/events/:id` | Elimina un evento. |
+| GET | `/api/users` | Lista usuarios. Requiere rol `admin`. |
 
 ## Ejemplos de las rutas generales
 
@@ -341,6 +376,7 @@ Crear un evento:
 
 ```bash
 curl -X POST http://localhost:8080/api/events \
+  -b cookies.txt \
   -H "Content-Type: application/json" \
   -d '{"titulo":"Node.js para principiantes","descripcion":"Introducción al desarrollo de APIs","fecha":"2026-11-20T18:00:00.000Z","ubicacion":"Montevideo","capacidad":50}'
 ```
@@ -351,6 +387,7 @@ Actualizar un evento:
 
 ```bash
 curl -X PUT http://localhost:8080/api/events/665f2a000000000000000001 \
+  -b cookies.txt \
   -H "Content-Type: application/json" \
   -d '{"capacidad":75}'
 ```
@@ -373,7 +410,8 @@ curl -X PUT http://localhost:8080/api/events/665f2a000000000000000001 \
 Eliminar un evento:
 
 ```bash
-curl -X DELETE http://localhost:8080/api/events/665f2a000000000000000001
+curl -X DELETE http://localhost:8080/api/events/665f2a000000000000000001 \
+  -b cookies.txt
 ```
 
 ```json

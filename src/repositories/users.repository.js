@@ -15,6 +15,10 @@ export class UsersRepository {
     return this.usersDao.findById(id);
   }
 
+  async findAll() {
+    return this.usersDao.findAll();
+  }
+
   async create(userData) {
     return this.usersDao.create(userData);
   }

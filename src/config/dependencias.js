@@ -1,5 +1,6 @@
 import { SessionsController } from '../controllers/sessions.controller.js';
 import { ControladorEventos } from '../controllers/events.controller.js';
+import { UsersController } from '../controllers/users.controller.js';
 import { UsersDao } from '../dao/users.dao.js';
 import { EventosDao } from '../dao/eventos.dao.js';
 import { User } from '../models/User.js';
@@ -16,5 +17,6 @@ export const controladorEventos = new ControladorEventos(servicioEventos);
 
 const usersDao = new UsersDao(User);
 export const usersRepository = new UsersRepository(usersDao);
+export const usersController = new UsersController(usersRepository);
 
 export const sessionsController = new SessionsController();

@@ -15,6 +15,10 @@ export class UsersDao {
     return this.userModel.findById(id).lean();
   }
 
+  async findAll() {
+    return this.userModel.find().select('-password').sort({ email: 1 }).lean();
+  }
+
   async create(userData) {
     const user = await this.userModel.create(userData);
     return user.toObject();
