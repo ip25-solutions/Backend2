@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { sessionsController } from '../config/dependencias.js';
+import { autenticar } from '../middlewares/auth.middleware.js';
 import { autenticarConPassport } from '../middlewares/passport.middleware.js';
 
 const enrutadorSesiones = Router();
@@ -16,7 +17,7 @@ enrutadorSesiones.post(
 );
 enrutadorSesiones.get(
   '/current',
-  autenticarConPassport('current', 'No autenticado', 401),
+  autenticar,
   sessionsController.current
 );
 enrutadorSesiones.post('/logout', sessionsController.logout);

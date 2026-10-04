@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { ROLES } from '../config/permisos.js';
 
 const esquemaUsuario = new mongoose.Schema(
   {
@@ -26,8 +27,8 @@ const esquemaUsuario = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['user', 'organizer', 'admin'],
-      default: 'user'
+      enum: Object.values(ROLES),
+      default: ROLES.USUARIO
     }
   },
   {
