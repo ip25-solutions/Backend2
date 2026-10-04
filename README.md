@@ -1,6 +1,6 @@
 # Plataforma de Eventos e Inscripciones
 
-API REST para gestionar eventos e inscripciones. Esta quinta pre-entrega incorpora autorización por roles, protección de rutas y validación de propiedad sobre los eventos, manteniendo el JWT en una cookie HTTP Only.
+API REST para gestionar eventos e inscripciones. Esta sexta pre-entrega completa la entidad Event con validaciones de negocio, autorización por propiedad, cancelación lógica y un listado público con filtros, paginación y ordenamiento.
 
 ## Tecnologías
 
@@ -127,11 +127,11 @@ El modelo admite los roles `user`, `organizer` y `admin`; el registro público s
 | --- | :---: | :---: | :---: |
 | Consultar eventos publicados | ✅ | ✅ | ✅ |
 | Crear eventos | ❌ | ✅ | ✅ |
-| Modificar o eliminar eventos propios | ❌ | ✅ | ✅ |
-| Modificar o eliminar cualquier evento | ❌ | ❌ | ✅ |
+| Modificar o cancelar eventos propios | ❌ | ✅ | ✅ |
+| Modificar o cancelar cualquier evento | ❌ | ❌ | ✅ |
 | Ver todos los usuarios | ❌ | ❌ | ✅ |
 
-Las consultas de eventos son públicas y, al no existir todavía un estado de borrador, todos los eventos almacenados se consideran publicados. Las rutas privadas ejecutan primero `autenticar`, que valida la cookie y carga el usuario, y luego `autorizar`, que comprueba el rol. En las modificaciones de eventos existe además una validación de propiedad: un organizer solo puede operar sobre recursos cuyo campo `organizador` coincida con su identificador; un admin puede operar sobre cualquiera.
+Las consultas de eventos son públicas. Las rutas privadas ejecutan primero `autenticar`, que valida la cookie y carga el usuario, y luego `autorizar`, que comprueba el rol. En las modificaciones existe además una validación de propiedad: un organizer solo puede operar sobre recursos cuyo campo `organizer` coincida con su identificador; un admin puede operar sobre cualquiera.
 
 ### Diferencia entre 401 y 403
 
@@ -145,8 +145,65 @@ Las consultas de eventos son públicas y, al no existir todavía un estado de bo
 | GET | `/api/sessions/current` | Cualquier usuario autenticado |
 | POST | `/api/events` | organizer o admin |
 | PUT | `/api/events/:id` | organizer propietario o admin |
-| DELETE | `/api/events/:id` | organizer propietario o admin |
+| PATCH | `/api/events/:id/status` | organizer propietario o admin |
 | GET | `/api/users` | Solo admin |
+
+## Entidad Event
+
+| Campo | Tipo | Regla |
+| --- | --- | --- |
+| `title` | string | Obligatorio y no vacío |
+| `description` | string | Obligatorio y no vacío |
+| `category` | string | Obligatorio y no vacío |
+| `date` | date | Obligatorio y futuro al crear |
+| `location` | string | Obligatorio y no vacío |
+| `capacity` | number | Obligatorio y mayor que cero |
+| `price` | number | Obligatorio y mayor o igual que cero |
+| `status` | string | `draft`, `published`, `cancelled` o `finished`; por defecto `draft` |
+| `organizer` | ObjectId | Referencia obligatoria a User, asignada desde la sesión |
+
+`organizer` nunca se toma del body. El service utiliza el identificador de `request.user`, por lo que un cliente no puede crear un evento en nombre de otro usuario.
+
+### Reglas de negocio
+
+- No se pueden crear eventos con fecha pasada, capacidad menor o igual que cero ni precio negativo.
+- `organizer` y `status` no se modifican mediante `PUT`; el estado tiene su endpoint específico.
+- Un organizer solo modifica o cancela eventos propios; un admin puede hacerlo sobre eventos de cualquier organizer.
+- Un evento `cancelled` no admite nuevas modificaciones ni cambios de estado. Esta regla también se aplica a admin para preservar el historial de cancelación.
+- Un evento `finished` o cuya fecha ya pasó no puede volver a `published`.
+- Cancelar significa cambiar `status` a `cancelled`. No existe eliminación física de eventos.
+
+## Listado de eventos
+
+`GET /api/events` es público y siempre devuelve una respuesta paginada. Parámetros disponibles:
+
+| Parámetro | Descripción |
+| --- | --- |
+| `status` | Filtra por uno de los cuatro estados admitidos |
+| `category` | Coincidencia exacta de categoría |
+| `location` | Coincidencia parcial, sin distinguir mayúsculas |
+| `dateFrom` | Fecha mínima incluida |
+| `dateTo` | Fecha máxima incluida |
+| `page` | Página positiva; valor predeterminado `1` |
+| `limit` | Resultados por página; predeterminado `10`, máximo `100` |
+| `sort` | `date`, `price`, `title` o `capacity`; prefijo `-` para orden descendente |
+
+Ejemplo:
+
+```bash
+curl "http://localhost:8080/api/events?status=published&category=workshop&page=2&limit=5&sort=date"
+```
+
+```json
+{
+  "status": "success",
+  "data": [],
+  "page": 2,
+  "limit": 5,
+  "total": 0,
+  "totalPages": 0
+}
+```
 
 ## Registro de usuarios
 
@@ -244,7 +301,7 @@ El encabezado `Set-Cookie` contiene `currentUser`. Si el email no existe, falta 
 
 ### `GET /api/sessions/current`
 
-Utiliza la estrategia `current`: requiere una cookie válida, deja el usuario autenticado en `request.user` y devuelve exclusivamente `id`, `email` y `role`.
+Utiliza el middleware `autenticar`: requiere una cookie válida, deja el usuario autenticado en `request.user` y devuelve exclusivamente `id`, `email` y `role`.
 
 Solicitud:
 
@@ -313,6 +370,14 @@ db.users.findOne({ email: 'ana@mail.com' })
 
 El valor de `password` debe comenzar con el formato de hash de bcrypt y nunca coincidir con `Secreta123`.
 
+9. Intentá crear un evento con rol `user` y confirmá el código `403`.
+10. Probá crear eventos con fecha pasada, `capacity: 0` y `price: -1`; deben devolver `400`.
+11. Confirmá que un organizer modifica su evento, recibe `403` sobre uno ajeno y que admin modifica cualquiera.
+12. Cancelá un evento con `PATCH /api/events/:id/status` y verificá que el documento siga almacenado.
+13. Intentá modificar o cambiar el estado de un evento cancelado; debe devolver `400`.
+14. Probá filtros, paginación y ordenamiento sobre `GET /api/events`.
+15. Consultá un identificador de evento inexistente y confirmá el código `404`.
+
 ## Resumen de rutas
 
 | Método | Ruta | Descripción |
@@ -322,11 +387,11 @@ El valor de `password` debe comenzar con el formato de hash de bcrypt y nunca co
 | POST | `/api/sessions/login` | Valida credenciales y crea la cookie de autenticación. |
 | GET | `/api/sessions/current` | Devuelve el usuario autenticado. Requiere una cookie válida. |
 | POST | `/api/sessions/logout` | Elimina la cookie de autenticación. |
-| GET | `/api/events` | Devuelve todos los eventos. |
+| GET | `/api/events` | Lista eventos con filtros, paginación y ordenamiento. Acceso público. |
 | GET | `/api/events/:id` | Devuelve un evento por su identificador. |
-| POST | `/api/events` | Crea un evento. |
-| PUT | `/api/events/:id` | Actualiza un evento. |
-| DELETE | `/api/events/:id` | Elimina un evento. |
+| POST | `/api/events` | Crea un evento. Requiere organizer o admin. |
+| PUT | `/api/events/:id` | Actualiza un evento propio o cualquiera si es admin. |
+| PATCH | `/api/events/:id/status` | Cambia el estado de un evento propio o cualquiera si es admin. |
 | GET | `/api/users` | Lista usuarios. Requiere rol `admin`. |
 
 ## Ejemplos de las rutas generales
@@ -344,11 +409,18 @@ curl http://localhost:8080/api/health
 Listar eventos:
 
 ```bash
-curl http://localhost:8080/api/events
+curl "http://localhost:8080/api/events?status=published&location=Montevideo&page=1&limit=10&sort=date"
 ```
 
 ```json
-{ "status": "success", "payload": [] }
+{
+  "status": "success",
+  "data": [],
+  "page": 1,
+  "limit": 10,
+  "total": 0,
+  "totalPages": 0
+}
 ```
 
 Obtener un evento:
@@ -362,12 +434,15 @@ curl http://localhost:8080/api/events/665f2a000000000000000001
   "status": "success",
   "payload": {
     "_id": "665f2a000000000000000001",
-    "titulo": "Node.js para principiantes",
-    "descripcion": "Introducción al desarrollo de APIs",
-    "fecha": "2026-11-20T18:00:00.000Z",
-    "ubicacion": "Montevideo",
-    "capacidad": 50,
-    "organizador": null
+    "title": "Node.js para principiantes",
+    "description": "Introducción al desarrollo de APIs",
+    "category": "workshop",
+    "date": "2030-11-20T18:00:00.000Z",
+    "location": "Montevideo",
+    "capacity": 50,
+    "price": 1200,
+    "status": "draft",
+    "organizer": "665f2a000000000000000000"
   }
 }
 ```
@@ -378,10 +453,10 @@ Crear un evento:
 curl -X POST http://localhost:8080/api/events \
   -b cookies.txt \
   -H "Content-Type: application/json" \
-  -d '{"titulo":"Node.js para principiantes","descripcion":"Introducción al desarrollo de APIs","fecha":"2026-11-20T18:00:00.000Z","ubicacion":"Montevideo","capacidad":50}'
+  -d '{"title":"Node.js para principiantes","description":"Introducción al desarrollo de APIs","category":"workshop","date":"2030-11-20T18:00:00.000Z","location":"Montevideo","capacity":50,"price":1200}'
 ```
 
-La respuesta utiliza el mismo objeto del ejemplo anterior y el código `201 Created`.
+La respuesta utiliza el mismo objeto del ejemplo anterior, asigna `status: "draft"` y toma `organizer` de la sesión. El código es `201 Created`.
 
 Actualizar un evento:
 
@@ -389,7 +464,7 @@ Actualizar un evento:
 curl -X PUT http://localhost:8080/api/events/665f2a000000000000000001 \
   -b cookies.txt \
   -H "Content-Type: application/json" \
-  -d '{"capacidad":75}'
+  -d '{"capacity":75,"price":1500}'
 ```
 
 ```json
@@ -397,23 +472,34 @@ curl -X PUT http://localhost:8080/api/events/665f2a000000000000000001 \
   "status": "success",
   "payload": {
     "_id": "665f2a000000000000000001",
-    "titulo": "Node.js para principiantes",
-    "descripcion": "Introducción al desarrollo de APIs",
-    "fecha": "2026-11-20T18:00:00.000Z",
-    "ubicacion": "Montevideo",
-    "capacidad": 75,
-    "organizador": null
+    "title": "Node.js para principiantes",
+    "description": "Introducción al desarrollo de APIs",
+    "category": "workshop",
+    "date": "2030-11-20T18:00:00.000Z",
+    "location": "Montevideo",
+    "capacity": 75,
+    "price": 1500,
+    "status": "draft",
+    "organizer": "665f2a000000000000000000"
   }
 }
 ```
 
-Eliminar un evento:
+Cancelar un evento sin eliminarlo:
 
 ```bash
-curl -X DELETE http://localhost:8080/api/events/665f2a000000000000000001 \
-  -b cookies.txt
+curl -X PATCH http://localhost:8080/api/events/665f2a000000000000000001/status \
+  -b cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{"status":"cancelled"}'
 ```
 
 ```json
-{ "status": "success", "message": "Evento eliminado" }
+{
+  "status": "success",
+  "payload": {
+    "_id": "665f2a000000000000000001",
+    "status": "cancelled"
+  }
+}
 ```
