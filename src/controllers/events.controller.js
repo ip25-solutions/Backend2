@@ -40,7 +40,11 @@ export class ControladorEventos {
 
   async actualizar(solicitud, respuesta, siguiente) {
     try {
-      const evento = await this.servicioEventos.actualizar(solicitud.params.id, solicitud.body);
+      const evento = await this.servicioEventos.actualizar(
+        solicitud.params.id,
+        solicitud.body,
+        solicitud.user
+      );
       respuesta.status(200).json({ status: 'success', payload: evento });
     } catch (error) {
       siguiente(error);
@@ -49,7 +53,7 @@ export class ControladorEventos {
 
   async eliminar(solicitud, respuesta, siguiente) {
     try {
-      await this.servicioEventos.eliminar(solicitud.params.id);
+      await this.servicioEventos.eliminar(solicitud.params.id, solicitud.user);
       respuesta.status(200).json({ status: 'success', message: 'Evento eliminado' });
     } catch (error) {
       siguiente(error);

@@ -1,4 +1,15 @@
 import { ErrorAplicacion } from '../utils/ErrorAplicacion.js';
+import { ROLES } from '../config/permisos.js';
+
+const validarPropiedad = (evento, usuario) => {
+  if (usuario.role === ROLES.ADMINISTRADOR) {
+    return;
+  }
+
+  if (evento.organizador?.toString() !== usuario.id) {
+    throw new ErrorAplicacion('No tenés permisos para realizar esta acción', 403);
+  }
+};
 
 export class ServicioEventos {
   constructor(repositorioEventos) {
@@ -23,7 +34,10 @@ export class ServicioEventos {
     return this.repositorioEventos.crear(datosEvento);
   }
 
-  async actualizar(id, datosEvento) {
+  async actualizar(id, datosEvento, usuario) {
+    const eventoExistente = await this.obtenerPorId(id);
+    validarPropiedad(eventoExistente, usuario);
+
     const evento = await this.repositorioEventos.actualizar(id, datosEvento);
 
     if (!evento) {
@@ -33,7 +47,10 @@ export class ServicioEventos {
     return evento;
   }
 
-  async eliminar(id) {
+  async eliminar(id, usuario) {
+    const eventoExistente = await this.obtenerPorId(id);
+    validarPropiedad(eventoExistente, usuario);
+
     const evento = await this.repositorioEventos.eliminar(id);
 
     if (!evento) {

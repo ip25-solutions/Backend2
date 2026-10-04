@@ -14,7 +14,17 @@ enrutadorEventos.post(
   autorizar(...PERMISOS.CREAR_EVENTOS),
   controladorEventos.crear
 );
-enrutadorEventos.put('/:id', controladorEventos.actualizar);
-enrutadorEventos.delete('/:id', controladorEventos.eliminar);
+enrutadorEventos.put(
+  '/:id',
+  autenticar,
+  autorizar(...PERMISOS.MODIFICAR_EVENTOS),
+  controladorEventos.actualizar
+);
+enrutadorEventos.delete(
+  '/:id',
+  autenticar,
+  autorizar(...PERMISOS.MODIFICAR_EVENTOS),
+  controladorEventos.eliminar
+);
 
 export default enrutadorEventos;
