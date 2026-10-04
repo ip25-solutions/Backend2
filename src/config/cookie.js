@@ -1,3 +1,4 @@
+import ms from 'ms';
 import { entorno } from './entorno.js';
 
 export const COOKIE_AUTENTICACION = 'currentUser';
@@ -10,5 +11,5 @@ export const opcionesBaseCookieAutenticacion = {
 
 export const opcionesCookieAutenticacion = {
   ...opcionesBaseCookieAutenticacion,
-  maxAge: 3600000
+  maxAge: ms(entorno.jwtExpiresIn)
 };

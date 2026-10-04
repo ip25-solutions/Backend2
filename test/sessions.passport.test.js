@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 
 process.env.JWT_SECRET = 'clave_exclusiva_para_pruebas';
-process.env.JWT_EXPIRES_IN = '1h';
+process.env.JWT_EXPIRES_IN = '2h';
 
 const { default: aplicacion } = await import('../src/app.js');
 const { usersRepository } = await import('../src/config/dependencias.js');
@@ -85,6 +85,7 @@ test('registro, login, current y logout conservan el contrato de la API', async 
   assert.deepEqual(loginBody, { status: 'success', message: 'Login correcto' });
   assert.match(setCookie, /currentUser=/);
   assert.match(setCookie, /HttpOnly/i);
+  assert.match(setCookie, /Max-Age=7200/i);
 
   const currentResponse = await request('/api/sessions/current', {
     headers: { cookie }

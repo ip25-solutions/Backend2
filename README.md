@@ -39,7 +39,7 @@ Reemplazá los marcadores de `MONGO_URL` por los datos de tu clúster de MongoDB
 | `NODE_ENV` | Entorno de ejecución; en `production` activa cookies `secure`. | `development` |
 | `MONGO_URL` | Cadena de conexión de MongoDB. | URI de MongoDB Atlas |
 | `JWT_SECRET` | Secreto utilizado para firmar y validar los JWT. | Clave local sin datos reales |
-| `JWT_EXPIRES_IN` | Vigencia del JWT aceptada por jsonwebtoken. | `1h` |
+| `JWT_EXPIRES_IN` | Vigencia compartida por el JWT y su cookie HTTP Only. | `1h` |
 
 ## Ejecución
 
@@ -184,7 +184,7 @@ Email repetido (`409 Conflict`):
 
 ### `POST /api/sessions/login`
 
-La estrategia `login` valida el email y la contraseña. Si son correctos, el controller firma un JWT con `id`, `email` y `role`, y lo guarda en la cookie `currentUser`. La cookie utiliza `httpOnly`, `sameSite: 'lax'`, una duración de una hora y `secure` únicamente en producción.
+La estrategia `login` valida el email y la contraseña. Si son correctos, el controller firma un JWT con `id`, `email` y `role`, y lo guarda en la cookie `currentUser`. La cookie utiliza `httpOnly`, `sameSite: 'lax'`, la duración configurada en `JWT_EXPIRES_IN` y `secure` únicamente en producción.
 
 Solicitud:
 
