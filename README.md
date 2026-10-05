@@ -1,6 +1,6 @@
 # Plataforma de Eventos e Inscripciones
 
-API REST para gestionar eventos e inscripciones. Esta sexta pre-entrega completa la entidad Event con validaciones de negocio, autorización por propiedad, cancelación lógica y un listado público con filtros, paginación y ordenamiento.
+API REST para gestionar eventos e inscripciones. Esta séptima pre-entrega incorpora tickets con control de cupos, prevención de duplicados, cancelación lógica y confirmaciones por email mediante Nodemailer.
 
 ## Tecnologías
 
@@ -9,6 +9,7 @@ API REST para gestionar eventos e inscripciones. Esta sexta pre-entrega completa
 - bcrypt
 - JSON Web Token
 - Passport.js, passport-local y passport-jwt
+- Nodemailer
 - cookie-parser
 - dotenv
 - JavaScript con módulos ESM
@@ -29,6 +30,11 @@ NODE_ENV=development
 MONGO_URL=mongodb+srv://USUARIO:CONTRASENA@CLUSTER.mongodb.net/plataforma_eventos
 JWT_SECRET=clave_secreta_de_desarrollo
 JWT_EXPIRES_IN=1h
+MAIL_HOST=smtp.example.com
+MAIL_PORT=587
+MAIL_USER=usuario_smtp
+MAIL_PASS=contrasena_smtp
+MAIL_FROM="Plataforma Eventos <eventos@example.com>"
 ```
 
 Reemplazá los marcadores de `MONGO_URL` por los datos de tu clúster de MongoDB Atlas y `JWT_SECRET` por un secreto robusto en el archivo `.env`. Este archivo está excluido del repositorio y nunca se deben guardar credenciales reales en `.env.example`.
@@ -40,6 +46,13 @@ Reemplazá los marcadores de `MONGO_URL` por los datos de tu clúster de MongoDB
 | `MONGO_URL` | Cadena de conexión de MongoDB. | URI de MongoDB Atlas |
 | `JWT_SECRET` | Secreto utilizado para firmar y validar los JWT. | Clave local sin datos reales |
 | `JWT_EXPIRES_IN` | Vigencia compartida por el JWT y su cookie HTTP Only. | `1h` |
+| `MAIL_HOST` | Host del servidor SMTP. | `smtp.example.com` |
+| `MAIL_PORT` | Puerto SMTP; `465` activa conexión segura directa. | `587` |
+| `MAIL_USER` | Usuario de la cuenta SMTP. | Usuario provisto por el servicio |
+| `MAIL_PASS` | Contraseña o token SMTP. | Secreto local, nunca versionado |
+| `MAIL_FROM` | Remitente visible de las confirmaciones. | `Plataforma Eventos <eventos@example.com>` |
+
+Las variables `MAIL_*` son obligatorias al confirmar una inscripción. `.env.example` contiene solamente marcadores; las credenciales reales deben permanecer en `.env`, que está excluido de Git.
 
 ## Ejecución
 
@@ -63,7 +76,7 @@ Pruebas automatizadas:
 npm test
 ```
 
-Las pruebas ejecutan los flujos de sesiones, eventos y administración con repositorios simulados, por lo que no escriben datos en MongoDB.
+Las pruebas ejecutan los flujos de sesiones, eventos, tickets y administración con repositorios y correo simulados, por lo que no escriben datos en MongoDB ni envían emails reales.
 
 ## Estructura
 
@@ -84,6 +97,7 @@ test/
 ├── authorization.middleware.test.js
 ├── events.authorization.test.js
 ├── sessions.passport.test.js
+├── tickets.flow.test.js
 └── users.authorization.test.js
 ```
 
@@ -129,6 +143,9 @@ El modelo admite los roles `user`, `organizer` y `admin`; el registro público s
 | Crear eventos | ❌ | ✅ | ✅ |
 | Modificar o cancelar eventos propios | ❌ | ✅ | ✅ |
 | Modificar o cancelar cualquier evento | ❌ | ❌ | ✅ |
+| Inscribirse y consultar tickets propios | ✅ | ✅ | ✅ |
+| Consultar tickets de eventos propios | ❌ | ✅ | ✅ |
+| Consultar tickets de cualquier evento | ❌ | ❌ | ✅ |
 | Ver todos los usuarios | ❌ | ❌ | ✅ |
 
 Las consultas de eventos son públicas. Las rutas privadas ejecutan primero `autenticar`, que valida la cookie y carga el usuario, y luego `autorizar`, que comprueba el rol. En las modificaciones existe además una validación de propiedad: un organizer solo puede operar sobre recursos cuyo campo `organizer` coincida con su identificador; un admin puede operar sobre cualquiera.
@@ -146,6 +163,10 @@ Las consultas de eventos son públicas. Las rutas privadas ejecutan primero `aut
 | POST | `/api/events` | organizer o admin |
 | PUT | `/api/events/:id` | organizer propietario o admin |
 | PATCH | `/api/events/:id/status` | organizer propietario o admin |
+| POST | `/api/events/:eid/tickets` | Cualquier usuario autenticado |
+| GET | `/api/tickets/my-tickets` | Cualquier usuario autenticado |
+| GET | `/api/events/:eid/tickets` | organizer propietario del evento o admin |
+| PATCH | `/api/tickets/:tid/cancel` | Dueño del ticket o admin |
 | GET | `/api/users` | Solo admin |
 
 ## Entidad Event
@@ -204,6 +225,37 @@ curl "http://localhost:8080/api/events?status=published&category=workshop&page=2
   "totalPages": 0
 }
 ```
+
+## Tickets e inscripciones
+
+Ticket relaciona un usuario con un evento mediante referencias ObjectId; no almacena objetos embebidos.
+
+| Campo | Tipo | Regla |
+| --- | --- | --- |
+| `user` | ObjectId | Referencia al usuario autenticado |
+| `event` | ObjectId | Referencia al evento solicitado |
+| `status` | string | `confirmed`, `pending` o `cancelled` |
+| `quantity` | number | Entero mayor que cero |
+| `reservationCode` | string | UUID único generado por el backend |
+| `createdAt` | date | Generado automáticamente |
+| `cancelledAt` | date o null | Se completa al cancelar |
+
+### Flujo de inscripción
+
+1. El middleware valida la sesión y el service busca el evento.
+2. El evento debe estar `published`, no haber finalizado y conservar una fecha futura.
+3. El service valida `quantity`, comprueba que el usuario no tenga otro ticket activo y suma los cupos ocupados.
+4. Los tickets `confirmed` y `pending` ocupan cupo; los `cancelled` no se cuentan.
+5. Si existe disponibilidad, se crea un ticket `confirmed` con un código de reserva único.
+6. Nodemailer envía la confirmación a la dirección incluida en la sesión autenticada.
+
+Solo se permite una inscripción activa por usuario y evento. Una cancelación cambia el estado a `cancelled`, registra `cancelledAt` y conserva el documento; como deja de contarse entre los estados activos, el cupo queda disponible automáticamente.
+
+### Consultas y privacidad
+
+`GET /api/tickets/my-tickets` filtra siempre por el usuario autenticado y utiliza `populate` exclusivamente sobre `event`, limitado a `title`, `date` y `location`. No popula ni expone datos sensibles de otros usuarios.
+
+El listado `GET /api/events/:eid/tickets` conserva la referencia `user` como identificador y solo puede consultarlo el organizer dueño del evento o un admin.
 
 ## Registro de usuarios
 
@@ -377,6 +429,12 @@ El valor de `password` debe comenzar con el formato de hash de bcrypt y nunca co
 13. Intentá modificar o cambiar el estado de un evento cancelado; debe devolver `400`.
 14. Probá filtros, paginación y ordenamiento sobre `GET /api/events`.
 15. Consultá un identificador de evento inexistente y confirmá el código `404`.
+16. Inscribite en un evento publicado y verificá la recepción del email configurando credenciales SMTP reales en `.env`.
+17. Intentá inscribirte sin sesión, en un evento inexistente, cancelado o finalizado.
+18. Probá cantidad inválida, falta de cupo e inscripción activa duplicada.
+19. Cancelá un ticket propio y confirmá que otra inscripción pueda utilizar el cupo liberado.
+20. Confirmá que un user recibe `403` al cancelar un ticket ajeno o listar tickets de un evento.
+21. Confirmá que un organizer recibe `403` al listar tickets de un evento ajeno.
 
 ## Resumen de rutas
 
@@ -392,6 +450,10 @@ El valor de `password` debe comenzar con el formato de hash de bcrypt y nunca co
 | POST | `/api/events` | Crea un evento. Requiere organizer o admin. |
 | PUT | `/api/events/:id` | Actualiza un evento propio o cualquiera si es admin. |
 | PATCH | `/api/events/:id/status` | Cambia el estado de un evento propio o cualquiera si es admin. |
+| POST | `/api/events/:eid/tickets` | Crea una inscripción. Requiere autenticación. |
+| GET | `/api/tickets/my-tickets` | Lista los tickets del usuario autenticado. |
+| GET | `/api/events/:eid/tickets` | Lista tickets del evento. Requiere organizer propietario o admin. |
+| PATCH | `/api/tickets/:tid/cancel` | Cancela un ticket propio o cualquiera si es admin. |
 | GET | `/api/users` | Lista usuarios. Requiere rol `admin`. |
 
 ## Ejemplos de las rutas generales
@@ -503,3 +565,51 @@ curl -X PATCH http://localhost:8080/api/events/665f2a000000000000000001/status \
   }
 }
 ```
+
+Crear una inscripción:
+
+```bash
+curl -X POST http://localhost:8080/api/events/665f2a000000000000000001/tickets \
+  -b cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{"quantity":2}'
+```
+
+```json
+{
+  "status": "success",
+  "payload": {
+    "_id": "675f2a000000000000000001",
+    "user": "665f2a000000000000000010",
+    "event": "665f2a000000000000000001",
+    "status": "confirmed",
+    "quantity": 2,
+    "reservationCode": "a71fa393-80e0-4d7f-a42f-b34235068092",
+    "cancelledAt": null
+  }
+}
+```
+
+Consultar tickets propios:
+
+```bash
+curl -b cookies.txt http://localhost:8080/api/tickets/my-tickets
+```
+
+Cada elemento incluye `event` poblado solamente con `title`, `date` y `location`.
+
+Listar tickets de un evento como organizer propietario o admin:
+
+```bash
+curl -b cookies.txt http://localhost:8080/api/events/665f2a000000000000000001/tickets
+```
+
+Cancelar un ticket sin eliminarlo:
+
+```bash
+curl -X PATCH \
+  -b cookies.txt \
+  http://localhost:8080/api/tickets/675f2a000000000000000001/cancel
+```
+
+La respuesta conserva el ticket con `status: "cancelled"` y `cancelledAt` con la fecha de cancelación.
