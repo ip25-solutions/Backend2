@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { controladorEventos } from '../config/dependencias.js';
+import { controladorEventos, ticketsController } from '../config/dependencias.js';
 import { PERMISOS } from '../config/permisos.js';
 import { autenticar } from '../middlewares/auth.middleware.js';
 import { autorizar } from '../middlewares/authorize.middleware.js';
@@ -14,6 +14,7 @@ enrutadorEventos.post(
   autorizar(...PERMISOS.CREAR_EVENTOS),
   controladorEventos.crear
 );
+enrutadorEventos.post('/:eid/tickets', autenticar, ticketsController.crear);
 enrutadorEventos.put(
   '/:id',
   autenticar,
