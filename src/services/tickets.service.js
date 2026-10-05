@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ESTADOS_EVENTO } from '../config/eventos.js';
 import { ESTADOS_TICKET } from '../config/tickets.js';
+import { ROLES } from '../config/permisos.js';
 import { ErrorAplicacion } from '../utils/ErrorAplicacion.js';
 
 export class ServicioTickets {
@@ -51,5 +52,26 @@ export class ServicioTickets {
       reservationCode: randomUUID(),
       cancelledAt: null
     });
+  }
+
+  async listarPropios(userId) {
+    return this.repositorioTickets.obtenerPorUsuario(userId);
+  }
+
+  async listarPorEvento(eventId, usuario) {
+    const evento = await this.repositorioEventos.obtenerPorId(eventId);
+
+    if (!evento) {
+      throw new ErrorAplicacion('Evento no encontrado', 404);
+    }
+
+    const esAdmin = usuario.role === ROLES.ADMINISTRADOR;
+    const esPropietario = evento.organizer?.toString() === usuario.id;
+
+    if (!esAdmin && !esPropietario) {
+      throw new ErrorAplicacion('No tenés permisos para realizar esta acción', 403);
+    }
+
+    return this.repositorioTickets.obtenerPorEvento(eventId);
   }
 }

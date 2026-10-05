@@ -33,6 +33,20 @@ repositorioTickets.crear = async (datosTicket) => {
   tickets.push(ticket);
   return ticket;
 };
+repositorioTickets.obtenerPorUsuario = async (userId) =>
+  tickets
+    .filter((ticket) => ticket.user === userId)
+    .map((ticket) => ({
+      ...ticket,
+      event: {
+        id: evento.id,
+        title: evento.title,
+        date: evento.date,
+        location: 'Montevideo'
+      }
+    }));
+repositorioTickets.obtenerPorEvento = async (eventId) =>
+  tickets.filter((ticket) => ticket.event === eventId);
 
 const cookiePara = (id = 'user-1', role = ROLES.USUARIO) => {
   const token = generarToken({ id, email: `${id}@mail.com`, role });
@@ -48,6 +62,9 @@ const inscribirse = (eventId, quantity, cookie) =>
     },
     body: JSON.stringify({ quantity })
   });
+
+const obtener = (path, cookie) =>
+  fetch(`${baseUrl}${path}`, { headers: cookie ? { cookie } : {} });
 
 before(() => {
   server = aplicacion.listen(0);
@@ -129,4 +146,59 @@ test('rechaza una inscripción activa duplicada', async () => {
 
   assert.equal(response.status, 409);
   assert.equal((await response.json()).message, 'Ya tenés una inscripción activa para este evento');
+});
+
+test('my-tickets requiere sesión y devuelve solo los tickets propios con datos del evento', async () => {
+  tickets.push(
+    { id: 'ticket-propio', user: 'user-1', event: evento.id, status: 'confirmed', quantity: 1 },
+    { id: 'ticket-ajeno', user: 'user-2', event: evento.id, status: 'confirmed', quantity: 1 }
+  );
+
+  const sinSesion = await obtener('/api/tickets/my-tickets');
+  assert.equal(sinSesion.status, 401);
+
+  const response = await obtener('/api/tickets/my-tickets', cookiePara('user-1'));
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.payload.length, 1);
+  assert.equal(body.payload[0].id, 'ticket-propio');
+  assert.deepEqual(Object.keys(body.payload[0].event).sort(), ['date', 'id', 'location', 'title']);
+});
+
+test('un user común no puede listar tickets de un evento', async () => {
+  const response = await obtener(
+    `/api/events/${evento.id}/tickets`,
+    cookiePara('user-1', ROLES.USUARIO)
+  );
+  assert.equal(response.status, 403);
+});
+
+test('un organizer no puede listar tickets de un evento ajeno', async () => {
+  const response = await obtener(
+    `/api/events/${evento.id}/tickets`,
+    cookiePara('organizer-2', ROLES.ORGANIZADOR)
+  );
+  assert.equal(response.status, 403);
+});
+
+test('el organizer propietario y admin pueden listar tickets del evento', async () => {
+  tickets.push({
+    id: 'ticket-1',
+    user: 'user-1',
+    event: evento.id,
+    status: 'confirmed',
+    quantity: 1
+  });
+
+  for (const [id, role] of [
+    ['organizer-1', ROLES.ORGANIZADOR],
+    ['admin-1', ROLES.ADMINISTRADOR]
+  ]) {
+    const response = await obtener(`/api/events/${evento.id}/tickets`, cookiePara(id, role));
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.payload.length, 1);
+    assert.equal(typeof body.payload[0].user, 'string');
+  }
 });

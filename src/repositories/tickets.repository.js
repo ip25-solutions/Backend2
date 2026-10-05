@@ -14,4 +14,12 @@ export class TicketsRepository {
   async obtenerCantidadActiva(eventId) {
     return this.ticketsDao.obtenerCantidadActiva(eventId);
   }
+
+  async obtenerPorUsuario(userId) {
+    return this.ticketsDao.obtenerPorUsuario(userId);
+  }
+
+  async obtenerPorEvento(eventId) {
+    return this.ticketsDao.obtenerPorEvento(eventId);
+  }
 }

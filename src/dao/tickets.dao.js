@@ -34,4 +34,16 @@ export class TicketsDao {
 
     return resultado?.total ?? 0;
   }
+
+  async obtenerPorUsuario(userId) {
+    return this.modeloTicket
+      .find({ user: userId })
+      .populate('event', 'title date location')
+      .sort({ createdAt: -1 })
+      .lean();
+  }
+
+  async obtenerPorEvento(eventId) {
+    return this.modeloTicket.find({ event: eventId }).sort({ createdAt: -1 }).lean();
+  }
 }

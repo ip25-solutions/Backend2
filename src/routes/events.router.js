@@ -15,6 +15,12 @@ enrutadorEventos.post(
   controladorEventos.crear
 );
 enrutadorEventos.post('/:eid/tickets', autenticar, ticketsController.crear);
+enrutadorEventos.get(
+  '/:eid/tickets',
+  autenticar,
+  autorizar(...PERMISOS.VER_TICKETS_EVENTO),
+  ticketsController.listarPorEvento
+);
 enrutadorEventos.put(
   '/:id',
   autenticar,
