@@ -5,7 +5,9 @@ process.env.JWT_SECRET = 'clave_exclusiva_para_pruebas';
 process.env.JWT_EXPIRES_IN = '1h';
 
 const { default: aplicacion } = await import('../src/app.js');
-const { repositorioEventos, repositorioTickets } = await import('../src/config/dependencias.js');
+const { repositorioEventos, repositorioTickets, ticketsController } = await import(
+  '../src/config/dependencias.js'
+);
 const { ROLES } = await import('../src/config/permisos.js');
 const { generarToken } = await import('../src/utils/jwt.js');
 
@@ -13,6 +15,7 @@ let server;
 let baseUrl;
 let evento;
 let tickets;
+let correos;
 
 repositorioEventos.obtenerPorId = async (id) => (evento?.id === id ? evento : null);
 repositorioTickets.obtenerActivoPorUsuarioYEvento = async (userId, eventId) =>
@@ -47,6 +50,19 @@ repositorioTickets.obtenerPorUsuario = async (userId) =>
     }));
 repositorioTickets.obtenerPorEvento = async (eventId) =>
   tickets.filter((ticket) => ticket.event === eventId);
+repositorioTickets.obtenerPorId = async (id) => tickets.find((ticket) => ticket.id === id) ?? null;
+repositorioTickets.cancelar = async (id, cancelledAt) => {
+  const ticket = tickets.find((item) => item.id === id);
+  if (!ticket) return null;
+  ticket.status = 'cancelled';
+  ticket.cancelledAt = cancelledAt;
+  return ticket;
+};
+ticketsController.servicioTickets.servicioCorreo = {
+  enviarConfirmacionInscripcion: async (datos) => {
+    correos.push(datos);
+  }
+};
 
 const cookiePara = (id = 'user-1', role = ROLES.USUARIO) => {
   const token = generarToken({ id, email: `${id}@mail.com`, role });
@@ -66,6 +82,12 @@ const inscribirse = (eventId, quantity, cookie) =>
 const obtener = (path, cookie) =>
   fetch(`${baseUrl}${path}`, { headers: cookie ? { cookie } : {} });
 
+const cancelarTicket = (ticketId, cookie) =>
+  fetch(`${baseUrl}/api/tickets/${ticketId}/cancel`, {
+    method: 'PATCH',
+    headers: cookie ? { cookie } : {}
+  });
+
 before(() => {
   server = aplicacion.listen(0);
   const { port } = server.address();
@@ -82,6 +104,7 @@ beforeEach(() => {
     organizer: 'organizer-1'
   };
   tickets = [];
+  correos = [];
 });
 
 after(
@@ -107,6 +130,9 @@ test('crea una inscripción confirmada con referencias y código de reserva', as
   assert.equal(body.payload.quantity, 1);
   assert.match(body.payload.reservationCode, /^[0-9a-f-]{36}$/i);
   assert.equal(body.payload.cancelledAt, null);
+  assert.equal(correos.length, 1);
+  assert.equal(correos[0].destinatario, 'user-1@mail.com');
+  assert.equal(correos[0].evento.title, evento.title);
 });
 
 test('rechaza la inscripción a un evento inexistente', async () => {
@@ -201,4 +227,62 @@ test('el organizer propietario y admin pueden listar tickets del evento', async 
     assert.equal(body.payload.length, 1);
     assert.equal(typeof body.payload[0].user, 'string');
   }
+});
+
+test('cancelar un ticket propio libera el cupo para otra inscripción', async () => {
+  evento.capacity = 1;
+  tickets.push({
+    id: 'ticket-propio',
+    user: 'user-1',
+    event: evento.id,
+    status: 'confirmed',
+    quantity: 1,
+    cancelledAt: null
+  });
+
+  const cancelResponse = await cancelarTicket('ticket-propio', cookiePara('user-1'));
+  const cancelBody = await cancelResponse.json();
+  assert.equal(cancelResponse.status, 200);
+  assert.equal(cancelBody.payload.status, 'cancelled');
+  assert.ok(cancelBody.payload.cancelledAt);
+
+  const createResponse = await inscribirse(evento.id, 1, cookiePara('user-2'));
+  assert.equal(createResponse.status, 201);
+});
+
+test('un user no puede cancelar un ticket ajeno', async () => {
+  tickets.push({
+    id: 'ticket-ajeno',
+    user: 'user-2',
+    event: evento.id,
+    status: 'confirmed',
+    quantity: 1
+  });
+
+  const response = await cancelarTicket('ticket-ajeno', cookiePara('user-1'));
+  assert.equal(response.status, 403);
+  assert.equal(tickets[0].status, 'confirmed');
+});
+
+test('un ticket cancelado no puede cancelarse nuevamente y admin puede cancelar tickets ajenos', async () => {
+  tickets.push({
+    id: 'ticket-1',
+    user: 'user-1',
+    event: evento.id,
+    status: 'cancelled',
+    quantity: 1,
+    cancelledAt: new Date()
+  });
+
+  const repeatedResponse = await cancelarTicket('ticket-1', cookiePara('user-1'));
+  assert.equal(repeatedResponse.status, 409);
+
+  tickets[0].status = 'confirmed';
+  tickets[0].cancelledAt = null;
+  const adminResponse = await cancelarTicket(
+    'ticket-1',
+    cookiePara('admin-1', ROLES.ADMINISTRADOR)
+  );
+  assert.equal(adminResponse.status, 200);
+  assert.equal(tickets[0].status, 'cancelled');
 });

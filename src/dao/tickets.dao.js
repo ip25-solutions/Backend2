@@ -46,4 +46,18 @@ export class TicketsDao {
   async obtenerPorEvento(eventId) {
     return this.modeloTicket.find({ event: eventId }).sort({ createdAt: -1 }).lean();
   }
+
+  async obtenerPorId(id) {
+    return this.modeloTicket.findById(id).lean();
+  }
+
+  async cancelar(id, cancelledAt) {
+    return this.modeloTicket
+      .findByIdAndUpdate(
+        id,
+        { status: 'cancelled', cancelledAt },
+        { returnDocument: 'after', runValidators: true }
+      )
+      .lean();
+  }
 }

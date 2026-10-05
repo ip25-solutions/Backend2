@@ -5,9 +5,10 @@ import { ROLES } from '../config/permisos.js';
 import { ErrorAplicacion } from '../utils/ErrorAplicacion.js';
 
 export class ServicioTickets {
-  constructor(repositorioTickets, repositorioEventos) {
+  constructor(repositorioTickets, repositorioEventos, servicioCorreo) {
     this.repositorioTickets = repositorioTickets;
     this.repositorioEventos = repositorioEventos;
+    this.servicioCorreo = servicioCorreo;
   }
 
   async crear(eventId, usuario, quantity) {
@@ -44,7 +45,7 @@ export class ServicioTickets {
       );
     }
 
-    return this.repositorioTickets.crear({
+    const ticket = await this.repositorioTickets.crear({
       user: usuario.id,
       event: eventId,
       status: ESTADOS_TICKET.CONFIRMADO,
@@ -52,6 +53,14 @@ export class ServicioTickets {
       reservationCode: randomUUID(),
       cancelledAt: null
     });
+
+    await this.servicioCorreo.enviarConfirmacionInscripcion({
+      destinatario: usuario.email,
+      ticket,
+      evento
+    });
+
+    return ticket;
   }
 
   async listarPropios(userId) {
@@ -73,5 +82,32 @@ export class ServicioTickets {
     }
 
     return this.repositorioTickets.obtenerPorEvento(eventId);
+  }
+
+  async cancelar(ticketId, usuario) {
+    const ticket = await this.repositorioTickets.obtenerPorId(ticketId);
+
+    if (!ticket) {
+      throw new ErrorAplicacion('Ticket no encontrado', 404);
+    }
+
+    const esAdmin = usuario.role === ROLES.ADMINISTRADOR;
+    const esPropietario = ticket.user?.toString() === usuario.id;
+
+    if (!esAdmin && !esPropietario) {
+      throw new ErrorAplicacion('No tenés permisos para realizar esta acción', 403);
+    }
+
+    if (ticket.status === ESTADOS_TICKET.CANCELADO) {
+      throw new ErrorAplicacion('El ticket ya está cancelado', 409);
+    }
+
+    const ticketCancelado = await this.repositorioTickets.cancelar(ticketId, new Date());
+
+    if (!ticketCancelado) {
+      throw new ErrorAplicacion('Ticket no encontrado', 404);
+    }
+
+    return ticketCancelado;
   }
 }

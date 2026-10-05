@@ -22,4 +22,12 @@ export class TicketsRepository {
   async obtenerPorEvento(eventId) {
     return this.ticketsDao.obtenerPorEvento(eventId);
   }
+
+  async obtenerPorId(id) {
+    return this.ticketsDao.obtenerPorId(id);
+  }
+
+  async cancelar(id, cancelledAt) {
+    return this.ticketsDao.cancelar(id, cancelledAt);
+  }
 }

@@ -4,6 +4,7 @@ export class TicketsController {
     this.crear = this.crear.bind(this);
     this.listarPropios = this.listarPropios.bind(this);
     this.listarPorEvento = this.listarPorEvento.bind(this);
+    this.cancelar = this.cancelar.bind(this);
   }
 
   async crear(request, response, next) {
@@ -32,6 +33,15 @@ export class TicketsController {
     try {
       const tickets = await this.servicioTickets.listarPorEvento(request.params.eid, request.user);
       response.status(200).json({ status: 'success', payload: tickets });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async cancelar(request, response, next) {
+    try {
+      const ticket = await this.servicioTickets.cancelar(request.params.tid, request.user);
+      response.status(200).json({ status: 'success', payload: ticket });
     } catch (error) {
       next(error);
     }

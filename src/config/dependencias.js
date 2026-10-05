@@ -13,6 +13,8 @@ import { RepositorioEventos } from '../repositories/eventos.repositorio.js';
 import { TicketsRepository } from '../repositories/tickets.repository.js';
 import { ServicioEventos } from '../services/eventos.servicio.js';
 import { ServicioTickets } from '../services/tickets.service.js';
+import { ServicioCorreo } from '../services/correo.service.js';
+import { entorno } from './entorno.js';
 
 const eventosDao = new EventosDao(Event);
 export const repositorioEventos = new RepositorioEventos(eventosDao);
@@ -22,7 +24,12 @@ export const controladorEventos = new ControladorEventos(servicioEventos);
 
 const ticketsDao = new TicketsDao(Ticket);
 export const repositorioTickets = new TicketsRepository(ticketsDao);
-const servicioTickets = new ServicioTickets(repositorioTickets, repositorioEventos);
+const servicioCorreo = new ServicioCorreo(entorno);
+const servicioTickets = new ServicioTickets(
+  repositorioTickets,
+  repositorioEventos,
+  servicioCorreo
+);
 export const ticketsController = new TicketsController(servicioTickets);
 
 const usersDao = new UsersDao(User);
