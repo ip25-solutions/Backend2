@@ -26,18 +26,18 @@ Copiá `.env.example` como `.env` y adaptá los valores a tu entorno:
 ```env
 PORT=8080
 NODE_ENV=development
-MONGO_URL=mongodb+srv://USUARIO:CONTRASENA@CLUSTER.mongodb.net/plataforma_eventos
+MONGO_URI=mongodb+srv://USUARIO:CONTRASENA@CLUSTER.mongodb.net/plataforma_eventos
 JWT_SECRET=clave_secreta_de_desarrollo
 JWT_EXPIRES_IN=1h
 ```
 
-Reemplazá los marcadores de `MONGO_URL` por los datos de tu clúster de MongoDB Atlas y `JWT_SECRET` por un secreto robusto en el archivo `.env`. Este archivo está excluido del repositorio y nunca se deben guardar credenciales reales en `.env.example`.
+Reemplazá los marcadores de `MONGO_URI` por los datos de tu clúster de MongoDB Atlas y `JWT_SECRET` por un secreto robusto en el archivo `.env`. Este archivo está excluido del repositorio y nunca se deben guardar credenciales reales en `.env.example`. Por compatibilidad, la aplicación también acepta la variable heredada `MONGO_URL`, pero `MONGO_URI` tiene prioridad.
 
 | Variable | Descripción | Valor de ejemplo |
 | --- | --- | --- |
 | `PORT` | Puerto HTTP de la aplicación. | `8080` |
 | `NODE_ENV` | Entorno de ejecución; en `production` activa cookies `secure`. | `development` |
-| `MONGO_URL` | Cadena de conexión de MongoDB. | URI de MongoDB Atlas |
+| `MONGO_URI` | Cadena de conexión de MongoDB. | URI de MongoDB Atlas |
 | `JWT_SECRET` | Secreto utilizado para firmar y validar los JWT. | Clave local sin datos reales |
 | `JWT_EXPIRES_IN` | Vigencia compartida por el JWT y su cookie HTTP Only. | `1h` |
 
@@ -148,6 +148,17 @@ Las consultas de eventos son públicas. Las rutas privadas ejecutan primero `aut
 | PATCH | `/api/events/:id/status` | organizer propietario o admin |
 | GET | `/api/users` | Solo admin |
 
+## Colecciones y modelos
+
+La aplicación persiste referencias entre documentos; no embebe el usuario completo dentro de Event.
+
+| Colección | Campos principales |
+| --- | --- |
+| `users` | `first_name`, `last_name`, `email`, `password`, `role`, `createdAt`, `updatedAt` |
+| `events` | `title`, `description`, `category`, `date`, `location`, `capacity`, `price`, `status`, `organizer`, `createdAt`, `updatedAt` |
+
+`User.role` admite `user`, `organizer` y `admin`. `Event.organizer` es un ObjectId con referencia a `User`; nunca contiene un objeto de usuario embebido.
+
 ## Entidad Event
 
 | Campo | Tipo | Regla |
@@ -204,6 +215,8 @@ curl "http://localhost:8080/api/events?status=published&category=workshop&page=2
   "totalPages": 0
 }
 ```
+
+Este contrato usa deliberadamente la clave `data` y siempre incluye `page`, `limit`, `total` y `totalPages`, tal como exige la consigna. La paginación se implementa en el DAO mediante `skip`, `limit` y `countDocuments`; no depende de `mongoose-paginate-v2` ni utiliza su formato `docs`.
 
 ## Registro de usuarios
 
@@ -503,3 +516,54 @@ curl -X PATCH http://localhost:8080/api/events/665f2a000000000000000001/status \
   }
 }
 ```
+
+No se expone `DELETE /api/events/:id`: cancelar es una transición de negocio y debe conservar el documento para mantener su historial. Por eso se usa `PATCH` con el body `{ "status": "cancelled" }`.
+
+## Pruebas manuales por rol
+
+La autenticación utiliza un JWT dentro de la cookie HTTP Only `currentUser`. Los siguientes ejemplos guardan esa cookie con `-c` y la reutilizan con `-b`; no es necesario copiar el token manualmente. Se asume que existen cuentas de prueba con cada rol, ya que el registro público siempre crea usuarios `user`.
+
+Login como user:
+
+```bash
+curl -i -c cookies-user.txt -X POST http://localhost:8080/api/sessions/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@mail.com","password":"Secreta123"}'
+```
+
+Un user autenticado recibe `403` al intentar crear un evento:
+
+```bash
+curl -i -X POST http://localhost:8080/api/events \
+  -b cookies-user.txt \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Evento restringido","description":"Prueba de permisos","category":"workshop","date":"2030-11-20T18:00:00.000Z","location":"Montevideo","capacity":20,"price":0}'
+```
+
+Login y creación como organizer:
+
+```bash
+curl -i -c cookies-organizer.txt -X POST http://localhost:8080/api/sessions/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"organizer@mail.com","password":"Secreta123"}'
+
+curl -i -X POST http://localhost:8080/api/events \
+  -b cookies-organizer.txt \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Workshop Node","description":"APIs con Express","category":"workshop","date":"2030-11-20T18:00:00.000Z","location":"Montevideo","capacity":30,"price":1200}'
+```
+
+El organizer puede modificar el evento creado por su cuenta, pero recibe `403` sobre eventos ajenos. Un admin puede modificar cualquier evento:
+
+```bash
+curl -i -c cookies-admin.txt -X POST http://localhost:8080/api/sessions/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@mail.com","password":"Secreta123"}'
+
+curl -i -X PUT http://localhost:8080/api/events/665f2a000000000000000001 \
+  -b cookies-admin.txt \
+  -H "Content-Type: application/json" \
+  -d '{"capacity":50}'
+```
+
+Sin ninguna cookie, las rutas privadas responden `401`; con una cookie válida pero permisos insuficientes responden `403`.
