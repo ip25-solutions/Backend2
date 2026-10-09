@@ -1,25 +1,25 @@
-export class UsersRepository {
-  constructor(usersDao) {
-    this.usersDao = usersDao;
+export class UserRepository {
+  constructor(userDAO) {
+    this.userDAO = userDAO;
   }
 
   async findByEmail(email) {
-    return this.usersDao.findByEmail(email);
+    return this.userDAO.findByEmail(email);
   }
 
   async findByEmailWithPassword(email) {
-    return this.usersDao.findByEmailWithPassword(email);
+    return this.userDAO.findByEmailWithPassword(email);
   }
 
   async findById(id) {
-    return this.usersDao.findById(id);
+    return this.userDAO.findById(id);
   }
 
   async findAll() {
-    return this.usersDao.findAll();
+    return this.userDAO.findAll();
   }
 
   async create(userData) {
-    return this.usersDao.create(userData);
+    return this.userDAO.create(userData);
   }
 }

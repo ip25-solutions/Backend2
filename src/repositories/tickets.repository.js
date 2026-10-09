@@ -1,33 +1,33 @@
-export class TicketsRepository {
-  constructor(ticketsDao) {
-    this.ticketsDao = ticketsDao;
+export class TicketRepository {
+  constructor(ticketDAO) {
+    this.ticketDAO = ticketDAO;
   }
 
   async crear(datosTicket) {
-    return this.ticketsDao.crear(datosTicket);
+    return this.ticketDAO.crear(datosTicket);
   }
 
   async obtenerActivoPorUsuarioYEvento(userId, eventId) {
-    return this.ticketsDao.obtenerActivoPorUsuarioYEvento(userId, eventId);
+    return this.ticketDAO.obtenerActivoPorUsuarioYEvento(userId, eventId);
   }
 
   async obtenerCantidadActiva(eventId) {
-    return this.ticketsDao.obtenerCantidadActiva(eventId);
+    return this.ticketDAO.obtenerCantidadActiva(eventId);
   }
 
   async obtenerPorUsuario(userId) {
-    return this.ticketsDao.obtenerPorUsuario(userId);
+    return this.ticketDAO.obtenerPorUsuario(userId);
   }
 
   async obtenerPorEvento(eventId) {
-    return this.ticketsDao.obtenerPorEvento(eventId);
+    return this.ticketDAO.obtenerPorEvento(eventId);
   }
 
   async obtenerPorId(id) {
-    return this.ticketsDao.obtenerPorId(id);
+    return this.ticketDAO.obtenerPorId(id);
   }
 
   async cancelar(id, cancelledAt) {
-    return this.ticketsDao.cancelar(id, cancelledAt);
+    return this.ticketDAO.cancelar(id, cancelledAt);
   }
 }

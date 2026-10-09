@@ -1,8 +1,9 @@
 import mongoose from 'mongoose';
 import { ESTADOS_TICKET_ACTIVO } from '../config/tickets.js';
+import { Ticket } from '../models/Ticket.js';
 
-export class TicketsDao {
-  constructor(modeloTicket) {
+export class TicketDAO {
+  constructor(modeloTicket = Ticket) {
     this.modeloTicket = modeloTicket;
   }
 

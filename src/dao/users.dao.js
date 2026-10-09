@@ -1,5 +1,7 @@
-export class UsersDao {
-  constructor(userModel) {
+import { User } from '../models/User.js';
+
+export class UserDAO {
+  constructor(userModel = User) {
     this.userModel = userModel;
   }
 

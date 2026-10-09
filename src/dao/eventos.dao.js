@@ -1,5 +1,7 @@
-export class EventosDao {
-  constructor(modeloEvento) {
+import { Event } from '../models/Event.js';
+
+export class EventDAO {
+  constructor(modeloEvento = Event) {
     this.modeloEvento = modeloEvento;
   }
 

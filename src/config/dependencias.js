@@ -2,28 +2,25 @@ import { SessionsController } from '../controllers/sessions.controller.js';
 import { ControladorEventos } from '../controllers/events.controller.js';
 import { UsersController } from '../controllers/users.controller.js';
 import { TicketsController } from '../controllers/tickets.controller.js';
-import { UsersDao } from '../dao/users.dao.js';
-import { EventosDao } from '../dao/eventos.dao.js';
-import { TicketsDao } from '../dao/tickets.dao.js';
-import { User } from '../models/User.js';
-import { Event } from '../models/Event.js';
-import { Ticket } from '../models/Ticket.js';
-import { UsersRepository } from '../repositories/users.repository.js';
-import { RepositorioEventos } from '../repositories/eventos.repositorio.js';
-import { TicketsRepository } from '../repositories/tickets.repository.js';
+import { UserDAO } from '../dao/users.dao.js';
+import { EventDAO } from '../dao/eventos.dao.js';
+import { TicketDAO } from '../dao/tickets.dao.js';
+import { UserRepository } from '../repositories/users.repository.js';
+import { EventRepository } from '../repositories/eventos.repositorio.js';
+import { TicketRepository } from '../repositories/tickets.repository.js';
 import { ServicioEventos } from '../services/eventos.servicio.js';
 import { ServicioTickets } from '../services/tickets.service.js';
 import { ServicioCorreo } from '../services/correo.service.js';
 import { entorno } from './entorno.js';
 
-const eventosDao = new EventosDao(Event);
-export const repositorioEventos = new RepositorioEventos(eventosDao);
+const eventDAO = new EventDAO();
+export const repositorioEventos = new EventRepository(eventDAO);
 const servicioEventos = new ServicioEventos(repositorioEventos);
 
 export const controladorEventos = new ControladorEventos(servicioEventos);
 
-const ticketsDao = new TicketsDao(Ticket);
-export const repositorioTickets = new TicketsRepository(ticketsDao);
+const ticketDAO = new TicketDAO();
+export const repositorioTickets = new TicketRepository(ticketDAO);
 const servicioCorreo = new ServicioCorreo(entorno);
 const servicioTickets = new ServicioTickets(
   repositorioTickets,
@@ -32,8 +29,8 @@ const servicioTickets = new ServicioTickets(
 );
 export const ticketsController = new TicketsController(servicioTickets);
 
-const usersDao = new UsersDao(User);
-export const usersRepository = new UsersRepository(usersDao);
+const userDAO = new UserDAO();
+export const usersRepository = new UserRepository(userDAO);
 export const usersController = new UsersController(usersRepository);
 
 export const sessionsController = new SessionsController();
