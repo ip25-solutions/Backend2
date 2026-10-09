@@ -1,3 +1,5 @@
+import { EventDTO } from '../dto/event.dto.js';
+
 export class ControladorEventos {
   constructor(servicioEventos) {
     this.servicioEventos = servicioEventos;
@@ -11,7 +13,11 @@ export class ControladorEventos {
   async obtenerTodos(solicitud, respuesta, siguiente) {
     try {
       const resultado = await this.servicioEventos.listar(solicitud.query);
-      respuesta.status(200).json({ status: 'success', ...resultado });
+      respuesta.status(200).json({
+        status: 'success',
+        ...resultado,
+        data: resultado.data.map(EventDTO.from)
+      });
     } catch (error) {
       siguiente(error);
     }
@@ -20,7 +26,7 @@ export class ControladorEventos {
   async obtenerPorId(solicitud, respuesta, siguiente) {
     try {
       const evento = await this.servicioEventos.obtenerPorId(solicitud.params.id);
-      respuesta.status(200).json({ status: 'success', payload: evento });
+      respuesta.status(200).json({ status: 'success', payload: EventDTO.from(evento) });
     } catch (error) {
       siguiente(error);
     }
@@ -29,7 +35,7 @@ export class ControladorEventos {
   async crear(solicitud, respuesta, siguiente) {
     try {
       const evento = await this.servicioEventos.crear(solicitud.body, solicitud.user.id);
-      respuesta.status(201).json({ status: 'success', payload: evento });
+      respuesta.status(201).json({ status: 'success', payload: EventDTO.from(evento) });
     } catch (error) {
       siguiente(error);
     }
@@ -42,7 +48,7 @@ export class ControladorEventos {
         solicitud.body,
         solicitud.user
       );
-      respuesta.status(200).json({ status: 'success', payload: evento });
+      respuesta.status(200).json({ status: 'success', payload: EventDTO.from(evento) });
     } catch (error) {
       siguiente(error);
     }
@@ -55,7 +61,7 @@ export class ControladorEventos {
         solicitud.body.status,
         solicitud.user
       );
-      respuesta.status(200).json({ status: 'success', payload: evento });
+      respuesta.status(200).json({ status: 'success', payload: EventDTO.from(evento) });
     } catch (error) {
       siguiente(error);
     }

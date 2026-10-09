@@ -4,6 +4,8 @@ import {
   opcionesCookieAutenticacion
 } from '../config/cookie.js';
 import { generarToken } from '../utils/jwt.js';
+import { AuthenticatedUserDTO } from '../dto/authenticated-user.dto.js';
+import { UserDTO } from '../dto/user.dto.js';
 
 export class SessionsController {
   constructor() {
@@ -14,7 +16,7 @@ export class SessionsController {
   }
 
   register(request, response) {
-    response.status(201).json({ status: 'success', payload: request.user });
+    response.status(201).json({ status: 'success', payload: UserDTO.from(request.user) });
   }
 
   login(request, response, next) {
@@ -28,8 +30,10 @@ export class SessionsController {
   }
 
   current(request, response) {
-    const { id, email, role } = request.user;
-    response.status(200).json({ status: 'success', payload: { id, email, role } });
+    response.status(200).json({
+      status: 'success',
+      payload: AuthenticatedUserDTO.from(request.user)
+    });
   }
 
   logout(request, response) {
