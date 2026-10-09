@@ -1,6 +1,6 @@
 # Plataforma de Eventos e Inscripciones
 
-API REST para gestionar eventos e inscripciones. Esta séptima pre-entrega incorpora tickets con control de cupos, prevención de duplicados, cancelación lógica y confirmaciones por email mediante Nodemailer.
+API REST para gestionar eventos e inscripciones. Esta octava pre-entrega organiza la aplicación en capas DAO, Repository, Service, Controller y DTO sin modificar el contrato externo de sus endpoints.
 
 ## Tecnologías
 
@@ -86,30 +86,50 @@ src/
 ├── server.js
 ├── config/          # Entorno, Passport, cookies, conexión y dependencias
 ├── routes/          # Definición de endpoints
-├── controllers/     # Entrada y salida HTTP; JWT y cookie tras el login
-├── services/        # Reglas de negocio de eventos
-├── repositories/    # Abstracción de acceso a datos
-├── dao/             # Operaciones directas con Mongoose
+├── controllers/     # Coordinación de request/response; JWT y cookie tras el login
+├── services/        # Reglas de negocio, permisos, cupos, estados y notificaciones
+├── repositories/    # Operaciones orientadas al dominio sobre cada DAO
+├── dao/             # Única capa que importa modelos y opera con Mongoose
+├── dto/             # Contratos de salida y filtrado de datos sensibles
 ├── models/          # Esquemas y modelos de MongoDB
 ├── middlewares/     # Adaptación de Passport y manejo centralizado de errores
 └── utils/           # Hash con bcrypt y firma de JWT
 test/
+├── architecture.layers.test.js
 ├── authorization.middleware.test.js
+├── dto.responses.test.js
 ├── events.authorization.test.js
+├── full-flow.test.js
 ├── sessions.passport.test.js
 ├── tickets.flow.test.js
 └── users.authorization.test.js
 ```
 
-El registro y el login respetan el siguiente flujo:
+## Arquitectura en capas
+
+Las dependencias se construyen en `src/config/dependencias.js` y respetan un flujo unidireccional:
 
 ```text
-Router → Passport → Estrategia → Repository → DAO → Mongoose → MongoDB → Controller → Response
+Request → Router/Passport → Controller → Service → Repository → DAO → Mongoose
+                                    ↓
+                              DTO → Response
 ```
+
+| Capa | Responsabilidad |
+| --- | --- |
+| DAO | Es la única que importa modelos de Mongoose. Ejecuta búsquedas, creación, actualización, conteos y `populate`. |
+| Repository | Usa su DAO y expresa operaciones del dominio, como buscar por email, contar tickets activos o cancelar un ticket. No importa modelos. |
+| Service | Concentra validaciones, permisos sobre recursos, estados, cupos, duplicados, hash de contraseñas y envío de email. Solo consume repositories. |
+| Controller | Extrae `body`, `params` y `query`, llama al service y construye la respuesta HTTP. No implementa reglas de negocio ni accede a persistencia. |
+| DTO | Define los campos de salida para usuario autenticado, usuario, evento y ticket. Elimina contraseñas y limita documentos poblados. |
+
+Existen `UserDAO`, `EventDAO` y `TicketDAO`, cada uno acompañado por su repository. Los tests de arquitectura verifican que ninguna importación futura saltee estas fronteras.
+
+Todas las respuestas sensibles atraviesan un DTO. `AuthenticatedUserDTO` limita `/current` a `id`, `email` y `role`; `UserDTO` nunca devuelve el hash; `EventDTO` reduce `organizer` a su identificador; y `TicketDTO` limita un evento poblado a `id`, `title`, `date` y `location`. Por lo tanto, `password` no se expone aunque el documento original o una relación poblada lo contengan.
 
 La lógica de autenticación se distribuye de esta manera:
 
-- `config/passport.config.js`: centraliza las estrategias `register`, `login` y `current`.
+- `config/passport.config.js`: centraliza las estrategias `register`, `login` y `current` y delega la lógica de credenciales a `SessionsService`.
 - `app.js`: ejecuta una única configuración e inicializa Passport con `passport.initialize()`.
 - `middlewares/passport.middleware.js`: adapta los fallos de Passport al contrato JSON de la API.
 - `middlewares/auth.middleware.js`: valida el JWT de la cookie y completa `request.user`.
@@ -125,11 +145,11 @@ Todas las estrategias se registran en `src/config/passport.config.js`; `app.js` 
 
 | Estrategia | Tipo | Responsabilidad |
 | --- | --- | --- |
-| `register` | Local | Valida los campos, normaliza el email, comprueba unicidad, hashea la contraseña y crea el usuario con el rol predeterminado. |
-| `login` | Local | Normaliza el email, busca el hash y valida la contraseña con bcrypt sin revelar qué credencial falló. |
+| `register` | Local | Delega en `SessionsService` la validación, normalización, unicidad, hash y creación con el rol predeterminado. |
+| `login` | Local | Delega en `SessionsService` la consulta y validación segura de credenciales. |
 | `current` | JWT | Extrae el token de la cookie `currentUser`, valida firma y expiración, y asigna `{ id, email, role }` a `request.user`. |
 
-Las estrategias solo autentican o registran al usuario. En particular, `login` no genera el JWT: esa responsabilidad permanece en el controller, que también configura la cookie HTTP Only. `logout` elimina la cookie directamente y no pasa por Passport.
+Las estrategias adaptan Passport al service correspondiente. En particular, `login` no genera el JWT: esa responsabilidad permanece en el controller, que también configura la cookie HTTP Only. `logout` elimina la cookie directamente y no pasa por Passport.
 
 La función `configurarPassport()` concentra el registro de estrategias. Para incorporar providers externos como Google o GitHub se agregan sus estrategias en ese archivo y sus rutas correspondientes, sin modificar la inicialización de `app.js`.
 
