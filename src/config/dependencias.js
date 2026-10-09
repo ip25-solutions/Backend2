@@ -11,6 +11,8 @@ import { TicketRepository } from '../repositories/tickets.repository.js';
 import { ServicioEventos } from '../services/eventos.servicio.js';
 import { ServicioTickets } from '../services/tickets.service.js';
 import { ServicioCorreo } from '../services/correo.service.js';
+import { SessionsService } from '../services/sessions.service.js';
+import { UsersService } from '../services/users.service.js';
 import { entorno } from './entorno.js';
 
 const eventDAO = new EventDAO();
@@ -31,6 +33,8 @@ export const ticketsController = new TicketsController(servicioTickets);
 
 const userDAO = new UserDAO();
 export const usersRepository = new UserRepository(userDAO);
-export const usersController = new UsersController(usersRepository);
+export const sessionsService = new SessionsService(usersRepository);
+const usersService = new UsersService(usersRepository);
+export const usersController = new UsersController(usersService);
 
 export const sessionsController = new SessionsController();

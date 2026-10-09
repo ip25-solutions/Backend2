@@ -16,7 +16,7 @@ export class ServicioTickets {
       throw new ErrorAplicacion('La cantidad debe ser un número entero mayor que cero', 400);
     }
 
-    const evento = await this.repositorioEventos.obtenerPorId(eventId);
+    const evento = await this.repositorioEventos.findById(eventId);
 
     if (!evento) {
       throw new ErrorAplicacion('Evento no encontrado', 404);
@@ -26,7 +26,7 @@ export class ServicioTickets {
       throw new ErrorAplicacion('El evento no está disponible para inscripciones', 409);
     }
 
-    const ticketActivo = await this.repositorioTickets.obtenerActivoPorUsuarioYEvento(
+    const ticketActivo = await this.repositorioTickets.findActiveByUserAndEvent(
       usuario.id,
       eventId
     );
@@ -35,7 +35,7 @@ export class ServicioTickets {
       throw new ErrorAplicacion('Ya tenés una inscripción activa para este evento', 409);
     }
 
-    const cantidadOcupada = await this.repositorioTickets.obtenerCantidadActiva(eventId);
+    const cantidadOcupada = await this.repositorioTickets.countActiveTickets(eventId);
     const cuposDisponibles = evento.capacity - cantidadOcupada;
 
     if (cuposDisponibles < quantity) {
@@ -45,7 +45,7 @@ export class ServicioTickets {
       );
     }
 
-    const ticket = await this.repositorioTickets.crear({
+    const ticket = await this.repositorioTickets.create({
       user: usuario.id,
       event: eventId,
       status: ESTADOS_TICKET.CONFIRMADO,
@@ -64,11 +64,11 @@ export class ServicioTickets {
   }
 
   async listarPropios(userId) {
-    return this.repositorioTickets.obtenerPorUsuario(userId);
+    return this.repositorioTickets.findByUser(userId);
   }
 
   async listarPorEvento(eventId, usuario) {
-    const evento = await this.repositorioEventos.obtenerPorId(eventId);
+    const evento = await this.repositorioEventos.findById(eventId);
 
     if (!evento) {
       throw new ErrorAplicacion('Evento no encontrado', 404);
@@ -81,11 +81,11 @@ export class ServicioTickets {
       throw new ErrorAplicacion('No tenés permisos para realizar esta acción', 403);
     }
 
-    return this.repositorioTickets.obtenerPorEvento(eventId);
+    return this.repositorioTickets.findByEvent(eventId);
   }
 
   async cancelar(ticketId, usuario) {
-    const ticket = await this.repositorioTickets.obtenerPorId(ticketId);
+    const ticket = await this.repositorioTickets.findById(ticketId);
 
     if (!ticket) {
       throw new ErrorAplicacion('Ticket no encontrado', 404);
@@ -102,7 +102,7 @@ export class ServicioTickets {
       throw new ErrorAplicacion('El ticket ya está cancelado', 409);
     }
 
-    const ticketCancelado = await this.repositorioTickets.cancelar(ticketId, new Date());
+    const ticketCancelado = await this.repositorioTickets.cancelTicket(ticketId, new Date());
 
     if (!ticketCancelado) {
       throw new ErrorAplicacion('Ticket no encontrado', 404);

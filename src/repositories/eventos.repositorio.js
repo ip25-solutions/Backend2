@@ -3,23 +3,23 @@ export class EventRepository {
     this.eventDAO = eventDAO;
   }
 
-  async obtenerTodos(opciones) {
-    return this.eventDAO.obtenerTodos(opciones);
+  async findMany(opciones) {
+    return this.eventDAO.findMany(opciones);
   }
 
-  async obtenerPorId(id) {
-    return this.eventDAO.obtenerPorId(id);
+  async findById(id) {
+    return this.eventDAO.findById(id);
   }
 
-  async crear(datosEvento) {
-    return this.eventDAO.crear(datosEvento);
+  async create(datosEvento) {
+    return this.eventDAO.create(datosEvento);
   }
 
-  async actualizar(id, datosEvento) {
-    return this.eventDAO.actualizar(id, datosEvento);
+  async update(id, datosEvento) {
+    return this.eventDAO.update(id, datosEvento);
   }
 
-  async actualizarEstado(id, status) {
-    return this.eventDAO.actualizarEstado(id, status);
+  async changeStatus(id, status) {
+    return this.eventDAO.changeStatus(id, status);
   }
 }

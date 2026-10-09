@@ -15,25 +15,25 @@ let ultimoEventoCreado;
 let eventoPersistido;
 let ultimaConsultaListado;
 
-controladorEventos.servicioEventos.repositorioEventos.crear = async (datosEvento) => {
+controladorEventos.servicioEventos.repositorioEventos.create = async (datosEvento) => {
   ultimoEventoCreado = datosEvento;
   return { id: 'evento-1', ...datosEvento };
 };
-controladorEventos.servicioEventos.repositorioEventos.obtenerTodos = async (opciones) => {
+controladorEventos.servicioEventos.repositorioEventos.findMany = async (opciones) => {
   ultimaConsultaListado = opciones;
   return {
     data: [{ id: 'evento-listado', title: 'Workshop Node', status: 'published' }],
     total: 6
   };
 };
-controladorEventos.servicioEventos.repositorioEventos.obtenerPorId = async (id) =>
+controladorEventos.servicioEventos.repositorioEventos.findById = async (id) =>
   eventoPersistido?.id === id ? eventoPersistido : null;
-controladorEventos.servicioEventos.repositorioEventos.actualizar = async (id, cambios) => {
+controladorEventos.servicioEventos.repositorioEventos.update = async (id, cambios) => {
   if (eventoPersistido?.id !== id) return null;
   eventoPersistido = { ...eventoPersistido, ...cambios };
   return eventoPersistido;
 };
-controladorEventos.servicioEventos.repositorioEventos.actualizarEstado = async (id, status) => {
+controladorEventos.servicioEventos.repositorioEventos.changeStatus = async (id, status) => {
   if (eventoPersistido?.id !== id) return null;
   eventoPersistido = { ...eventoPersistido, status };
   return eventoPersistido;

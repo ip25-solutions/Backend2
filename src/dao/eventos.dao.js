@@ -5,7 +5,7 @@ export class EventDAO {
     this.modeloEvento = modeloEvento;
   }
 
-  async obtenerTodos({ filtros, orden, page, limit }) {
+  async findMany({ filtros, orden, page, limit }) {
     const consulta = this.modeloEvento
       .find(filtros)
       .sort(orden)
@@ -21,22 +21,22 @@ export class EventDAO {
     return { data, total };
   }
 
-  async obtenerPorId(id) {
+  async findById(id) {
     return this.modeloEvento.findById(id).lean();
   }
 
-  async crear(datosEvento) {
+  async create(datosEvento) {
     const evento = await this.modeloEvento.create(datosEvento);
     return evento.toObject();
   }
 
-  async actualizar(id, datosEvento) {
+  async update(id, datosEvento) {
     return this.modeloEvento
       .findByIdAndUpdate(id, datosEvento, { returnDocument: 'after', runValidators: true })
       .lean();
   }
 
-  async actualizarEstado(id, status) {
+  async changeStatus(id, status) {
     return this.modeloEvento
       .findByIdAndUpdate(id, { status }, { returnDocument: 'after', runValidators: true })
       .lean();

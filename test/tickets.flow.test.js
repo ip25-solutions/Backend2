@@ -17,26 +17,26 @@ let evento;
 let tickets;
 let correos;
 
-repositorioEventos.obtenerPorId = async (id) => (evento?.id === id ? evento : null);
-repositorioTickets.obtenerActivoPorUsuarioYEvento = async (userId, eventId) =>
+repositorioEventos.findById = async (id) => (evento?.id === id ? evento : null);
+repositorioTickets.findActiveByUserAndEvent = async (userId, eventId) =>
   tickets.find(
     (ticket) =>
       ticket.user === userId &&
       ticket.event === eventId &&
       ['confirmed', 'pending'].includes(ticket.status)
   ) ?? null;
-repositorioTickets.obtenerCantidadActiva = async (eventId) =>
+repositorioTickets.countActiveTickets = async (eventId) =>
   tickets
     .filter(
       (ticket) => ticket.event === eventId && ['confirmed', 'pending'].includes(ticket.status)
     )
     .reduce((total, ticket) => total + ticket.quantity, 0);
-repositorioTickets.crear = async (datosTicket) => {
+repositorioTickets.create = async (datosTicket) => {
   const ticket = { id: `ticket-${tickets.length + 1}`, ...datosTicket };
   tickets.push(ticket);
   return ticket;
 };
-repositorioTickets.obtenerPorUsuario = async (userId) =>
+repositorioTickets.findByUser = async (userId) =>
   tickets
     .filter((ticket) => ticket.user === userId)
     .map((ticket) => ({
@@ -48,10 +48,10 @@ repositorioTickets.obtenerPorUsuario = async (userId) =>
         location: 'Montevideo'
       }
     }));
-repositorioTickets.obtenerPorEvento = async (eventId) =>
+repositorioTickets.findByEvent = async (eventId) =>
   tickets.filter((ticket) => ticket.event === eventId);
-repositorioTickets.obtenerPorId = async (id) => tickets.find((ticket) => ticket.id === id) ?? null;
-repositorioTickets.cancelar = async (id, cancelledAt) => {
+repositorioTickets.findById = async (id) => tickets.find((ticket) => ticket.id === id) ?? null;
+repositorioTickets.cancelTicket = async (id, cancelledAt) => {
   const ticket = tickets.find((item) => item.id === id);
   if (!ticket) return null;
   ticket.status = 'cancelled';
