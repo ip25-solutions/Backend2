@@ -1,6 +1,6 @@
 # Plataforma de Eventos e Inscripciones
 
-API REST para gestionar eventos e inscripciones. Esta séptima pre-entrega incorpora tickets con control de cupos, prevención de duplicados, cancelación lógica y confirmaciones por email mediante Nodemailer.
+API REST para gestionar eventos e inscripciones. Esta séptima pre-entrega incorpora tickets con control de cupos, prevención de duplicados, cancelación lógica y notificaciones de confirmación y cancelación mediante Nodemailer.
 
 ## Tecnologías
 
@@ -50,9 +50,9 @@ Reemplazá los marcadores de `MONGO_URI` por los datos de tu clúster de MongoDB
 | `MAIL_PORT` | Puerto SMTP; `465` activa conexión segura directa. | `587` |
 | `MAIL_USER` | Usuario de la cuenta SMTP. | Usuario provisto por el servicio |
 | `MAIL_PASS` | Contraseña o token SMTP. | Secreto local, nunca versionado |
-| `MAIL_FROM` | Remitente visible de las confirmaciones. | `Plataforma Eventos <eventos@example.com>` |
+| `MAIL_FROM` | Remitente visible de las notificaciones. | `Plataforma Eventos <eventos@example.com>` |
 
-Las variables `MAIL_*` son obligatorias al confirmar una inscripción. `.env.example` contiene solamente marcadores; las credenciales reales deben permanecer en `.env`, que está excluido de Git.
+Las variables `MAIL_*` son obligatorias para notificar la confirmación y la cancelación de inscripciones. `.env.example` contiene solamente marcadores; las credenciales reales deben permanecer en `.env`, que está excluido de Git.
 
 ## Ejecución
 
@@ -95,6 +95,7 @@ src/
 └── utils/           # Hash con bcrypt y firma de JWT
 test/
 ├── authorization.middleware.test.js
+├── correo.service.test.js
 ├── events.authorization.test.js
 ├── sessions.passport.test.js
 ├── tickets.flow.test.js
@@ -261,14 +262,31 @@ Ticket relaciona un usuario con un evento mediante referencias ObjectId; no alma
 4. Los tickets `confirmed` y `pending` ocupan cupo; los `cancelled` no se cuentan.
 5. Si existe disponibilidad, se crea un ticket `confirmed` con un código de reserva único.
 6. Nodemailer envía la confirmación a la dirección incluida en la sesión autenticada.
+7. Al cancelar, Nodemailer envía el aviso al dueño del ticket. Si la acción la realiza un admin, el destinatario continúa siendo el usuario inscripto.
 
 Solo se permite una inscripción activa por usuario y evento. Una cancelación cambia el estado a `cancelled`, registra `cancelledAt` y conserva el documento; como deja de contarse entre los estados activos, el cupo queda disponible automáticamente.
+
+La capacidad máxima del evento no se decrementa físicamente. Los cupos ocupados se calculan sumando `quantity` únicamente en tickets `confirmed` o `pending`; por eso una cancelación restituye el cupo sin modificar el documento Event.
 
 ### Consultas y privacidad
 
 `GET /api/tickets/my-tickets` filtra siempre por el usuario autenticado y utiliza `populate` exclusivamente sobre `event`, limitado a `title`, `date` y `location`. No popula ni expone datos sensibles de otros usuarios.
 
 El listado `GET /api/events/:eid/tickets` conserva la referencia `user` como identificador y solo puede consultarlo el organizer dueño del evento o un admin.
+
+### Evidencias de cumplimiento de la Pre-entrega 7
+
+| Criterio | Implementación | Prueba automatizada |
+| --- | --- | --- |
+| Modelo Ticket con referencias, estados y código de reserva | `src/models/Ticket.js` | Creación confirmada en `test/tickets.flow.test.js` |
+| Inscripción autenticada y validaciones de negocio | `src/services/tickets.service.js` | Sesión, evento inexistente/no disponible, cantidad, cupos y duplicados |
+| Cupos calculados solo con tickets activos | `src/dao/tickets.dao.js` | Falta de cupo y reutilización después de cancelar |
+| Cancelación lógica, propiedad y administración | Service, repository y DAO de tickets | Cancelación propia, ajena, repetida y por admin |
+| Tickets propios con evento poblado | `TicketsDao.obtenerPorUsuario` | Respuesta limitada a `title`, `date` y `location` |
+| Listado de tickets por organizer propietario o admin | `GET /api/events/:eid/tickets` | Casos `user`, organizer ajeno, propietario y admin |
+| Email de confirmación y cancelación | `src/services/correo.service.js` | Flujo de tickets y `test/correo.service.test.js` |
+
+La suite se ejecuta con `npm test`. Las pruebas reemplazan MongoDB y SMTP por dobles controlados, validan los códigos HTTP y comprueban que ambos emails se soliciten con el destinatario correcto. Para verificar la entrega real de correo, configurá un servidor SMTP en `.env` y seguí los pasos 16 y 19 de la lista de comprobaciones.
 
 ## Registro de usuarios
 
@@ -442,10 +460,10 @@ El valor de `password` debe comenzar con el formato de hash de bcrypt y nunca co
 13. Intentá modificar o cambiar el estado de un evento cancelado; debe devolver `400`.
 14. Probá filtros, paginación y ordenamiento sobre `GET /api/events`.
 15. Consultá un identificador de evento inexistente y confirmá el código `404`.
-16. Inscribite en un evento publicado y verificá la recepción del email configurando credenciales SMTP reales en `.env`.
+16. Inscribite en un evento publicado y verificá la recepción del email de confirmación configurando credenciales SMTP reales en `.env`.
 17. Intentá inscribirte sin sesión, en un evento inexistente, cancelado o finalizado.
 18. Probá cantidad inválida, falta de cupo e inscripción activa duplicada.
-19. Cancelá un ticket propio y confirmá que otra inscripción pueda utilizar el cupo liberado.
+19. Cancelá un ticket propio, verificá la recepción del email de cancelación y confirmá que otra inscripción pueda utilizar el cupo liberado.
 20. Confirmá que un user recibe `403` al cancelar un ticket ajeno o listar tickets de un evento.
 21. Confirmá que un organizer recibe `403` al listar tickets de un evento ajeno.
 
@@ -627,7 +645,7 @@ curl -X PATCH \
   http://localhost:8080/api/tickets/675f2a000000000000000001/cancel
 ```
 
-La respuesta conserva el ticket con `status: "cancelled"` y `cancelledAt` con la fecha de cancelación.
+La respuesta conserva el ticket con `status: "cancelled"` y `cancelledAt` con la fecha de cancelación. Nodemailer envía el aviso al email del dueño del ticket; si cancela un admin, no se utiliza el email del administrador como destinatario.
 
 ## Pruebas manuales por rol
 
