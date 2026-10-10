@@ -41,4 +41,21 @@ export class ServicioCorreo {
       ].join('\n')
     });
   }
+
+  async enviarCancelacionInscripcion({ destinatario, ticket, evento }) {
+    const fecha = new Date(evento.date).toLocaleString('es-UY');
+
+    return this.obtenerTransportador().sendMail({
+      from: this.configuracion.mailFrom,
+      to: destinatario,
+      subject: `Inscripción cancelada: ${evento.title}`,
+      text: [
+        `Tu inscripción a ${evento.title} fue cancelada.`,
+        `Fecha del evento: ${fecha}`,
+        `Lugar: ${evento.location}`,
+        `Cantidad liberada: ${ticket.quantity}`,
+        `Código de reserva: ${ticket.reservationCode}`
+      ].join('\n')
+    });
+  }
 }

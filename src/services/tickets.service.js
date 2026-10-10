@@ -85,14 +85,15 @@ export class ServicioTickets {
   }
 
   async cancelar(ticketId, usuario) {
-    const ticket = await this.repositorioTickets.obtenerPorId(ticketId);
+    const ticket = await this.repositorioTickets.obtenerPorIdConDetalles(ticketId);
 
     if (!ticket) {
       throw new ErrorAplicacion('Ticket no encontrado', 404);
     }
 
     const esAdmin = usuario.role === ROLES.ADMINISTRADOR;
-    const esPropietario = ticket.user?.toString() === usuario.id;
+    const propietarioId = ticket.user?._id?.toString() ?? ticket.user?.toString();
+    const esPropietario = propietarioId === usuario.id;
 
     if (!esAdmin && !esPropietario) {
       throw new ErrorAplicacion('No tenés permisos para realizar esta acción', 403);
@@ -107,6 +108,12 @@ export class ServicioTickets {
     if (!ticketCancelado) {
       throw new ErrorAplicacion('Ticket no encontrado', 404);
     }
+
+    await this.servicioCorreo.enviarCancelacionInscripcion({
+      destinatario: ticket.user.email,
+      ticket: ticketCancelado,
+      evento: ticket.event
+    });
 
     return ticketCancelado;
   }

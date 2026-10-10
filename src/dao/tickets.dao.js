@@ -51,6 +51,14 @@ export class TicketsDao {
     return this.modeloTicket.findById(id).lean();
   }
 
+  async obtenerPorIdConDetalles(id) {
+    return this.modeloTicket
+      .findById(id)
+      .populate('user', 'email')
+      .populate('event', 'title date location')
+      .lean();
+  }
+
   async cancelar(id, cancelledAt) {
     return this.modeloTicket
       .findByIdAndUpdate(

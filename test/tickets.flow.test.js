@@ -15,7 +15,8 @@ let server;
 let baseUrl;
 let evento;
 let tickets;
-let correos;
+let correosConfirmacion;
+let correosCancelacion;
 
 repositorioEventos.obtenerPorId = async (id) => (evento?.id === id ? evento : null);
 repositorioTickets.obtenerActivoPorUsuarioYEvento = async (userId, eventId) =>
@@ -51,6 +52,21 @@ repositorioTickets.obtenerPorUsuario = async (userId) =>
 repositorioTickets.obtenerPorEvento = async (eventId) =>
   tickets.filter((ticket) => ticket.event === eventId);
 repositorioTickets.obtenerPorId = async (id) => tickets.find((ticket) => ticket.id === id) ?? null;
+repositorioTickets.obtenerPorIdConDetalles = async (id) => {
+  const ticket = tickets.find((item) => item.id === id);
+  if (!ticket) return null;
+
+  return {
+    ...ticket,
+    user: { _id: ticket.user, email: `${ticket.user}@mail.com` },
+    event: {
+      id: evento.id,
+      title: evento.title,
+      date: evento.date,
+      location: 'Montevideo'
+    }
+  };
+};
 repositorioTickets.cancelar = async (id, cancelledAt) => {
   const ticket = tickets.find((item) => item.id === id);
   if (!ticket) return null;
@@ -60,7 +76,10 @@ repositorioTickets.cancelar = async (id, cancelledAt) => {
 };
 ticketsController.servicioTickets.servicioCorreo = {
   enviarConfirmacionInscripcion: async (datos) => {
-    correos.push(datos);
+    correosConfirmacion.push(datos);
+  },
+  enviarCancelacionInscripcion: async (datos) => {
+    correosCancelacion.push(datos);
   }
 };
 
@@ -104,7 +123,8 @@ beforeEach(() => {
     organizer: 'organizer-1'
   };
   tickets = [];
-  correos = [];
+  correosConfirmacion = [];
+  correosCancelacion = [];
 });
 
 after(
@@ -130,9 +150,9 @@ test('crea una inscripción confirmada con referencias y código de reserva', as
   assert.equal(body.payload.quantity, 1);
   assert.match(body.payload.reservationCode, /^[0-9a-f-]{36}$/i);
   assert.equal(body.payload.cancelledAt, null);
-  assert.equal(correos.length, 1);
-  assert.equal(correos[0].destinatario, 'user-1@mail.com');
-  assert.equal(correos[0].evento.title, evento.title);
+  assert.equal(correosConfirmacion.length, 1);
+  assert.equal(correosConfirmacion[0].destinatario, 'user-1@mail.com');
+  assert.equal(correosConfirmacion[0].evento.title, evento.title);
 });
 
 test('rechaza la inscripción a un evento inexistente', async () => {
@@ -245,6 +265,9 @@ test('cancelar un ticket propio libera el cupo para otra inscripción', async ()
   assert.equal(cancelResponse.status, 200);
   assert.equal(cancelBody.payload.status, 'cancelled');
   assert.ok(cancelBody.payload.cancelledAt);
+  assert.equal(correosCancelacion.length, 1);
+  assert.equal(correosCancelacion[0].destinatario, 'user-1@mail.com');
+  assert.equal(correosCancelacion[0].evento.title, evento.title);
 
   const createResponse = await inscribirse(evento.id, 1, cookiePara('user-2'));
   assert.equal(createResponse.status, 201);
@@ -285,4 +308,6 @@ test('un ticket cancelado no puede cancelarse nuevamente y admin puede cancelar 
   );
   assert.equal(adminResponse.status, 200);
   assert.equal(tickets[0].status, 'cancelled');
+  assert.equal(correosCancelacion.length, 1);
+  assert.equal(correosCancelacion[0].destinatario, 'user-1@mail.com');
 });
