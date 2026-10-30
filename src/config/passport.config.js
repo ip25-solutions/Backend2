@@ -3,14 +3,7 @@ import { Strategy as JwtStrategy } from 'passport-jwt';
 import { Strategy as LocalStrategy } from 'passport-local';
 import { COOKIE_AUTENTICACION } from './cookie.js';
 import { entorno } from './entorno.js';
-
-const toPublicUser = (user) => ({
-  id: user._id.toString(),
-  first_name: user.first_name,
-  last_name: user.last_name,
-  email: user.email,
-  role: user.role
-});
+import { crearUsuarioDto } from '../dto/user.dto.js';
 
 const extractJwtFromCookie = (request) => request?.cookies?.[COOKIE_AUTENTICACION] ?? null;
 
@@ -24,7 +17,7 @@ const crearEstrategiaRegistro = (servicioSesiones) => new LocalStrategy(
   async (request, _email, _password, done) => {
     try {
       const user = await servicioSesiones.registrar(request.body);
-      return done(null, toPublicUser(user));
+      return done(null, crearUsuarioDto(user));
     } catch (error) {
       if (error.estado) {
         return done(null, false, { message: error.message, status: error.estado });

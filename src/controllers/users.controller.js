@@ -1,10 +1,4 @@
-const convertirUsuarioPublico = (usuario) => ({
-  id: usuario._id?.toString() ?? usuario.id,
-  first_name: usuario.first_name,
-  last_name: usuario.last_name,
-  email: usuario.email,
-  role: usuario.role
-});
+import { crearUsuarioDto } from '../dto/user.dto.js';
 
 export class UsersController {
   constructor(servicioUsuarios) {
@@ -17,7 +11,7 @@ export class UsersController {
       const usuarios = await this.servicioUsuarios.listar();
       response.status(200).json({
         status: 'success',
-        payload: usuarios.map(convertirUsuarioPublico)
+        payload: usuarios.map(crearUsuarioDto)
       });
     } catch (error) {
       next(error);
