@@ -1,33 +1,37 @@
-export class TicketRepository {
-  constructor(ticketDAO) {
-    this.ticketDAO = ticketDAO;
+export class TicketsRepository {
+  constructor(ticketsDao) {
+    this.ticketsDao = ticketsDao;
   }
 
-  async create(datosTicket) {
-    return this.ticketDAO.create(datosTicket);
+  async crear(datosTicket) {
+    return this.ticketsDao.crear(datosTicket);
   }
 
-  async findActiveByUserAndEvent(userId, eventId) {
-    return this.ticketDAO.findActiveByUserAndEvent(userId, eventId);
+  async obtenerActivoPorUsuarioYEvento(userId, eventId) {
+    return this.ticketsDao.obtenerActivoPorUsuarioYEvento(userId, eventId);
   }
 
-  async countActiveTickets(eventId) {
-    return this.ticketDAO.countActiveTickets(eventId);
+  async obtenerCantidadActiva(eventId) {
+    return this.ticketsDao.obtenerCantidadActiva(eventId);
   }
 
-  async findByUser(userId) {
-    return this.ticketDAO.findByUser(userId);
+  async obtenerPorUsuario(userId) {
+    return this.ticketsDao.obtenerPorUsuario(userId);
   }
 
-  async findByEvent(eventId) {
-    return this.ticketDAO.findByEvent(eventId);
+  async obtenerPorEvento(eventId) {
+    return this.ticketsDao.obtenerPorEvento(eventId);
   }
 
-  async findById(id) {
-    return this.ticketDAO.findById(id);
+  async obtenerPorId(id) {
+    return this.ticketsDao.obtenerPorId(id);
   }
 
-  async cancelTicket(id, cancelledAt) {
-    return this.ticketDAO.cancel(id, cancelledAt);
+  async obtenerPorIdConDetalles(id) {
+    return this.ticketsDao.obtenerPorIdConDetalles(id);
+  }
+
+  async cancelar(id, cancelledAt) {
+    return this.ticketsDao.cancelar(id, cancelledAt);
   }
 }

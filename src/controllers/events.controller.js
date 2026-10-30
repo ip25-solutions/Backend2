@@ -1,4 +1,4 @@
-import { EventDTO } from '../dto/event.dto.js';
+import { crearEventoDto } from '../dto/event.dto.js';
 
 export class ControladorEventos {
   constructor(servicioEventos) {
@@ -16,7 +16,7 @@ export class ControladorEventos {
       respuesta.status(200).json({
         status: 'success',
         ...resultado,
-        data: resultado.data.map(EventDTO.from)
+        data: resultado.data.map(crearEventoDto)
       });
     } catch (error) {
       siguiente(error);
@@ -26,7 +26,7 @@ export class ControladorEventos {
   async obtenerPorId(solicitud, respuesta, siguiente) {
     try {
       const evento = await this.servicioEventos.obtenerPorId(solicitud.params.id);
-      respuesta.status(200).json({ status: 'success', payload: EventDTO.from(evento) });
+      respuesta.status(200).json({ status: 'success', payload: crearEventoDto(evento) });
     } catch (error) {
       siguiente(error);
     }
@@ -35,7 +35,7 @@ export class ControladorEventos {
   async crear(solicitud, respuesta, siguiente) {
     try {
       const evento = await this.servicioEventos.crear(solicitud.body, solicitud.user.id);
-      respuesta.status(201).json({ status: 'success', payload: EventDTO.from(evento) });
+      respuesta.status(201).json({ status: 'success', payload: crearEventoDto(evento) });
     } catch (error) {
       siguiente(error);
     }
@@ -48,7 +48,7 @@ export class ControladorEventos {
         solicitud.body,
         solicitud.user
       );
-      respuesta.status(200).json({ status: 'success', payload: EventDTO.from(evento) });
+      respuesta.status(200).json({ status: 'success', payload: crearEventoDto(evento) });
     } catch (error) {
       siguiente(error);
     }
@@ -61,7 +61,7 @@ export class ControladorEventos {
         solicitud.body.status,
         solicitud.user
       );
-      respuesta.status(200).json({ status: 'success', payload: EventDTO.from(evento) });
+      respuesta.status(200).json({ status: 'success', payload: crearEventoDto(evento) });
     } catch (error) {
       siguiente(error);
     }

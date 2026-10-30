@@ -1,4 +1,4 @@
-import { TicketDTO } from '../dto/ticket.dto.js';
+import { crearTicketDto } from '../dto/ticket.dto.js';
 
 export class TicketsController {
   constructor(servicioTickets) {
@@ -16,7 +16,7 @@ export class TicketsController {
         request.user,
         request.body.quantity
       );
-      response.status(201).json({ status: 'success', payload: TicketDTO.from(ticket) });
+      response.status(201).json({ status: 'success', payload: crearTicketDto(ticket) });
     } catch (error) {
       next(error);
     }
@@ -27,7 +27,7 @@ export class TicketsController {
       const tickets = await this.servicioTickets.listarPropios(request.user.id);
       response.status(200).json({
         status: 'success',
-        payload: tickets.map(TicketDTO.from)
+        payload: tickets.map(crearTicketDto)
       });
     } catch (error) {
       next(error);
@@ -39,7 +39,7 @@ export class TicketsController {
       const tickets = await this.servicioTickets.listarPorEvento(request.params.eid, request.user);
       response.status(200).json({
         status: 'success',
-        payload: tickets.map(TicketDTO.from)
+        payload: tickets.map(crearTicketDto)
       });
     } catch (error) {
       next(error);
@@ -49,7 +49,7 @@ export class TicketsController {
   async cancelar(request, response, next) {
     try {
       const ticket = await this.servicioTickets.cancelar(request.params.tid, request.user);
-      response.status(200).json({ status: 'success', payload: TicketDTO.from(ticket) });
+      response.status(200).json({ status: 'success', payload: crearTicketDto(ticket) });
     } catch (error) {
       next(error);
     }

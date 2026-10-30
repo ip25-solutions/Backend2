@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 import { ESTADOS_EVENTO } from '../config/eventos.js';
 import { ESTADOS_TICKET } from '../config/tickets.js';
 import { ROLES } from '../config/permisos.js';
@@ -16,7 +16,7 @@ export class ServicioTickets {
       throw new ErrorAplicacion('La cantidad debe ser un número entero mayor que cero', 400);
     }
 
-    const evento = await this.repositorioEventos.findById(eventId);
+    const evento = await this.repositorioEventos.obtenerPorId(eventId);
 
     if (!evento) {
       throw new ErrorAplicacion('Evento no encontrado', 404);
@@ -26,16 +26,16 @@ export class ServicioTickets {
       throw new ErrorAplicacion('El evento no está disponible para inscripciones', 409);
     }
 
-    const ticketActivo = await this.repositorioTickets.findActiveByUserAndEvent(
+    const ticketActivo = await this.repositorioTickets.obtenerActivoPorUsuarioYEvento(
       usuario.id,
       eventId
     );
 
     if (ticketActivo) {
-      throw new ErrorAplicacion('Ya tenés una inscripción activa para este evento', 409);
+      throw new ErrorAplicacion('Ya tenés una inscripción activa a este evento', 409);
     }
 
-    const cantidadOcupada = await this.repositorioTickets.countActiveTickets(eventId);
+    const cantidadOcupada = await this.repositorioTickets.obtenerCantidadActiva(eventId);
     const cuposDisponibles = evento.capacity - cantidadOcupada;
 
     if (cuposDisponibles < quantity) {
@@ -45,12 +45,12 @@ export class ServicioTickets {
       );
     }
 
-    const ticket = await this.repositorioTickets.create({
+    const ticket = await this.repositorioTickets.crear({
       user: usuario.id,
       event: eventId,
-      status: ESTADOS_TICKET.CONFIRMADO,
+      status: ESTADOS_TICKET.ACTIVO,
       quantity,
-      reservationCode: randomUUID(),
+      reservationCode: this.generarCodigoReserva(),
       cancelledAt: null
     });
 
@@ -63,12 +63,22 @@ export class ServicioTickets {
     return ticket;
   }
 
+  generarCodigoReserva() {
+    const alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const sufijo = Array.from(
+      { length: 4 },
+      () => alfabeto[randomInt(0, alfabeto.length)]
+    ).join('');
+
+    return `EVT-${sufijo}`;
+  }
+
   async listarPropios(userId) {
-    return this.repositorioTickets.findByUser(userId);
+    return this.repositorioTickets.obtenerPorUsuario(userId);
   }
 
   async listarPorEvento(eventId, usuario) {
-    const evento = await this.repositorioEventos.findById(eventId);
+    const evento = await this.repositorioEventos.obtenerPorId(eventId);
 
     if (!evento) {
       throw new ErrorAplicacion('Evento no encontrado', 404);
@@ -81,18 +91,19 @@ export class ServicioTickets {
       throw new ErrorAplicacion('No tenés permisos para realizar esta acción', 403);
     }
 
-    return this.repositorioTickets.findByEvent(eventId);
+    return this.repositorioTickets.obtenerPorEvento(eventId);
   }
 
   async cancelar(ticketId, usuario) {
-    const ticket = await this.repositorioTickets.findById(ticketId);
+    const ticket = await this.repositorioTickets.obtenerPorIdConDetalles(ticketId);
 
     if (!ticket) {
       throw new ErrorAplicacion('Ticket no encontrado', 404);
     }
 
     const esAdmin = usuario.role === ROLES.ADMINISTRADOR;
-    const esPropietario = ticket.user?.toString() === usuario.id;
+    const propietarioId = ticket.user?._id?.toString() ?? ticket.user?.toString();
+    const esPropietario = propietarioId === usuario.id;
 
     if (!esAdmin && !esPropietario) {
       throw new ErrorAplicacion('No tenés permisos para realizar esta acción', 403);
@@ -102,11 +113,17 @@ export class ServicioTickets {
       throw new ErrorAplicacion('El ticket ya está cancelado', 409);
     }
 
-    const ticketCancelado = await this.repositorioTickets.cancelTicket(ticketId, new Date());
+    const ticketCancelado = await this.repositorioTickets.cancelar(ticketId, new Date());
 
     if (!ticketCancelado) {
       throw new ErrorAplicacion('Ticket no encontrado', 404);
     }
+
+    await this.servicioCorreo.enviarCancelacionInscripcion({
+      destinatario: ticket.user.email,
+      ticket: ticketCancelado,
+      evento: ticket.event
+    });
 
     return ticketCancelado;
   }

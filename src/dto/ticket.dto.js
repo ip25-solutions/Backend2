@@ -1,30 +1,16 @@
-import { convertirId, identificarDocumento } from './dto.utils.js';
+import { crearResumenEventoDto } from './event.dto.js';
+import { obtenerId } from './dto.utils.js';
 
-const convertirEvento = (evento) => {
-  if (evento === null || evento === undefined || typeof evento !== 'object') {
-    return convertirId(evento);
-  }
+const convertirEvento = (evento) =>
+  evento && typeof evento === 'object' ? crearResumenEventoDto(evento) : obtenerId(evento);
 
-  return {
-    ...identificarDocumento(evento),
-    title: evento.title,
-    date: evento.date,
-    location: evento.location
-  };
-};
-
-export class TicketDTO {
-  static from(ticket) {
-    return {
-      ...identificarDocumento(ticket),
-      user: convertirId(ticket.user),
-      event: convertirEvento(ticket.event),
-      status: ticket.status,
-      quantity: ticket.quantity,
-      reservationCode: ticket.reservationCode,
-      createdAt: ticket.createdAt,
-      updatedAt: ticket.updatedAt,
-      cancelledAt: ticket.cancelledAt
-    };
-  }
-}
+export const crearTicketDto = (ticket) => ({
+  id: obtenerId(ticket),
+  event: convertirEvento(ticket.event),
+  user: obtenerId(ticket.user),
+  quantity: ticket.quantity,
+  status: ticket.status,
+  reservationCode: ticket.reservationCode,
+  createdAt: ticket.createdAt,
+  cancelledAt: ticket.cancelledAt
+});

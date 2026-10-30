@@ -3,11 +3,11 @@ import { Strategy as JwtStrategy } from 'passport-jwt';
 import { Strategy as LocalStrategy } from 'passport-local';
 import { COOKIE_AUTENTICACION } from './cookie.js';
 import { entorno } from './entorno.js';
-import { sessionsService } from './dependencias.js';
+import { crearUsuarioDto } from '../dto/user.dto.js';
 
 const extractJwtFromCookie = (request) => request?.cookies?.[COOKIE_AUTENTICACION] ?? null;
 
-const registerStrategy = new LocalStrategy(
+const crearEstrategiaRegistro = (servicioSesiones) => new LocalStrategy(
   {
     usernameField: 'email',
     passwordField: 'password',
@@ -16,14 +16,18 @@ const registerStrategy = new LocalStrategy(
   },
   async (request, _email, _password, done) => {
     try {
-      return done(null, await sessionsService.register(request.body));
+      const user = await servicioSesiones.registrar(request.body);
+      return done(null, crearUsuarioDto(user));
     } catch (error) {
+      if (error.estado) {
+        return done(null, false, { message: error.message, status: error.estado });
+      }
       return done(error);
     }
   }
 );
 
-const loginStrategy = new LocalStrategy(
+const crearEstrategiaLogin = (servicioSesiones) => new LocalStrategy(
   {
     usernameField: 'email',
     passwordField: 'password',
@@ -32,8 +36,17 @@ const loginStrategy = new LocalStrategy(
   },
   async (request, _email, _password, done) => {
     try {
-      return done(null, await sessionsService.login(request.body));
+      const user = await servicioSesiones.autenticar(request.body);
+
+      return done(null, {
+        id: user._id.toString(),
+        email: user.email,
+        role: user.role
+      });
     } catch (error) {
+      if (error.estado) {
+        return done(null, false, { message: error.message, status: error.estado });
+      }
       return done(error);
     }
   }
@@ -55,8 +68,8 @@ const currentStrategy = new JwtStrategy(
   }
 );
 
-export const configurarPassport = () => {
-  passport.use('register', registerStrategy);
-  passport.use('login', loginStrategy);
+export const configurarPassport = (servicioSesiones) => {
+  passport.use('register', crearEstrategiaRegistro(servicioSesiones));
+  passport.use('login', crearEstrategiaLogin(servicioSesiones));
   passport.use('current', currentStrategy);
 };

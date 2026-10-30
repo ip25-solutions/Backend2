@@ -213,7 +213,7 @@ export class ServicioEventos {
 
   async listar(query = {}) {
     const opciones = prepararListado(query);
-    const { data, total } = await this.repositorioEventos.findMany(opciones);
+    const { data, total } = await this.repositorioEventos.obtenerTodos(opciones);
 
     return {
       data,
@@ -225,7 +225,7 @@ export class ServicioEventos {
   }
 
   async obtenerPorId(id) {
-    const evento = await this.repositorioEventos.findById(id);
+    const evento = await this.repositorioEventos.obtenerPorId(id);
 
     if (!evento) {
       throw new ErrorAplicacion('Evento no encontrado', 404);
@@ -238,7 +238,7 @@ export class ServicioEventos {
     validarCreacion(datosEvento);
     const { organizer: _organizerIgnorado, ...datosPermitidos } = datosEvento;
 
-    return this.repositorioEventos.create({
+    return this.repositorioEventos.crear({
       ...datosPermitidos,
       status: datosPermitidos.status ?? ESTADOS_EVENTO.BORRADOR,
       organizer: organizerId
@@ -251,7 +251,7 @@ export class ServicioEventos {
     validarEventoEditable(eventoExistente);
     validarActualizacion(datosEvento);
 
-    const evento = await this.repositorioEventos.update(id, datosEvento);
+    const evento = await this.repositorioEventos.actualizar(id, datosEvento);
 
     if (!evento) {
       throw new ErrorAplicacion('Evento no encontrado', 404);
@@ -277,7 +277,7 @@ export class ServicioEventos {
       throw new ErrorAplicacion('No se puede publicar un evento finalizado', 400);
     }
 
-    const evento = await this.repositorioEventos.changeStatus(id, nuevoEstado);
+    const evento = await this.repositorioEventos.actualizarEstado(id, nuevoEstado);
 
     if (!evento) {
       throw new ErrorAplicacion('Evento no encontrado', 404);

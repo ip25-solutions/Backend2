@@ -26,13 +26,13 @@ usersRepository.create = async (data) => {
   return user;
 };
 
-repositorioEventos.create = async (data) => {
+repositorioEventos.crear = async (data) => {
   const event = { _id: 'event-1', ...data };
   events.set(event._id, event);
   return event;
 };
-repositorioEventos.findById = async (id) => events.get(id) ?? null;
-repositorioEventos.changeStatus = async (id, status) => {
+repositorioEventos.obtenerPorId = async (id) => events.get(id) ?? null;
+repositorioEventos.actualizarEstado = async (id, status) => {
   const event = events.get(id);
   if (!event) return null;
   const updatedEvent = { ...event, status };
@@ -40,16 +40,16 @@ repositorioEventos.changeStatus = async (id, status) => {
   return updatedEvent;
 };
 
-repositorioTickets.findActiveByUserAndEvent = async (userId, eventId) =>
+repositorioTickets.obtenerActivoPorUsuarioYEvento = async (userId, eventId) =>
   [...tickets.values()].find(
     (ticket) =>
       ticket.user === userId && ticket.event === eventId && ticket.status !== 'cancelled'
   ) ?? null;
-repositorioTickets.countActiveTickets = async (eventId) =>
+repositorioTickets.obtenerCantidadActiva = async (eventId) =>
   [...tickets.values()]
     .filter((ticket) => ticket.event === eventId && ticket.status !== 'cancelled')
     .reduce((total, ticket) => total + ticket.quantity, 0);
-repositorioTickets.create = async (data) => {
+repositorioTickets.crear = async (data) => {
   const ticket = {
     _id: 'ticket-1',
     ...data,
@@ -59,12 +59,21 @@ repositorioTickets.create = async (data) => {
   tickets.set(ticket._id, ticket);
   return ticket;
 };
-repositorioTickets.findByUser = async (userId) =>
+repositorioTickets.obtenerPorUsuario = async (userId) =>
   [...tickets.values()]
     .filter((ticket) => ticket.user === userId)
     .map((ticket) => ({ ...ticket, event: events.get(ticket.event) }));
-repositorioTickets.findById = async (id) => tickets.get(id) ?? null;
-repositorioTickets.cancelTicket = async (id, cancelledAt) => {
+repositorioTickets.obtenerPorId = async (id) => tickets.get(id) ?? null;
+repositorioTickets.obtenerPorIdConDetalles = async (id) => {
+  const ticket = tickets.get(id);
+  if (!ticket) return null;
+  return {
+    ...ticket,
+    user: { _id: ticket.user, email: users.get('organizer@mail.com').email },
+    event: events.get(ticket.event)
+  };
+};
+repositorioTickets.cancelar = async (id, cancelledAt) => {
   const ticket = tickets.get(id);
   if (!ticket) return null;
   const cancelledTicket = { ...ticket, status: 'cancelled', cancelledAt };
@@ -73,6 +82,9 @@ repositorioTickets.cancelTicket = async (id, cancelledAt) => {
 };
 
 ticketsController.servicioTickets.servicioCorreo.enviarConfirmacionInscripcion = async () => ({
+  accepted: ['organizer@mail.com']
+});
+ticketsController.servicioTickets.servicioCorreo.enviarCancelacionInscripcion = async () => ({
   accepted: ['organizer@mail.com']
 });
 
@@ -148,7 +160,7 @@ test('flujo completo desde el registro hasta la cancelación del ticket', async 
     cookie
   );
   assert.equal(enrollmentResponse.status, 201);
-  assert.equal((await enrollmentResponse.json()).payload.status, 'confirmed');
+  assert.equal((await enrollmentResponse.json()).payload.status, 'active');
 
   const myTicketsResponse = await fetch(`${baseUrl}/api/tickets/my-tickets`, {
     headers: { cookie }
@@ -157,8 +169,8 @@ test('flujo completo desde el registro hasta la cancelación del ticket', async 
   assert.equal(myTicketsResponse.status, 200);
   assert.equal(myTicketsBody.payload.length, 1);
   assert.deepEqual(Object.keys(myTicketsBody.payload[0].event).sort(), [
-    '_id',
     'date',
+    'id',
     'location',
     'title'
   ]);

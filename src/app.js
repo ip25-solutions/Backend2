@@ -7,12 +7,13 @@ import enrutadorSesiones from './routes/sessions.router.js';
 import enrutadorUsuarios from './routes/users.router.js';
 import enrutadorTickets from './routes/tickets.router.js';
 import { configurarPassport } from './config/passport.config.js';
+import { servicioSesiones } from './config/dependencias.js';
 import { manejarErrores } from './middlewares/manejadorErrores.js';
 import { manejarRutaNoEncontrada } from './middlewares/rutaNoEncontrada.js';
 
 const aplicacion = express();
 
-configurarPassport();
+configurarPassport(servicioSesiones);
 
 aplicacion.use(express.json());
 aplicacion.use(cookieParser());

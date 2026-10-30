@@ -2,17 +2,17 @@ import mongoose from 'mongoose';
 import { ESTADOS_TICKET_ACTIVO } from '../config/tickets.js';
 import { Ticket } from '../models/Ticket.js';
 
-export class TicketDAO {
+export class TicketsDao {
   constructor(modeloTicket = Ticket) {
     this.modeloTicket = modeloTicket;
   }
 
-  async create(datosTicket) {
+  async crear(datosTicket) {
     const ticket = await this.modeloTicket.create(datosTicket);
     return ticket.toObject();
   }
 
-  async findActiveByUserAndEvent(userId, eventId) {
+  async obtenerActivoPorUsuarioYEvento(userId, eventId) {
     return this.modeloTicket
       .findOne({
         user: userId,
@@ -22,7 +22,7 @@ export class TicketDAO {
       .lean();
   }
 
-  async countActiveTickets(eventId) {
+  async obtenerCantidadActiva(eventId) {
     const [resultado] = await this.modeloTicket.aggregate([
       {
         $match: {
@@ -36,7 +36,7 @@ export class TicketDAO {
     return resultado?.total ?? 0;
   }
 
-  async findByUser(userId) {
+  async obtenerPorUsuario(userId) {
     return this.modeloTicket
       .find({ user: userId })
       .populate('event', 'title date location')
@@ -44,15 +44,23 @@ export class TicketDAO {
       .lean();
   }
 
-  async findByEvent(eventId) {
+  async obtenerPorEvento(eventId) {
     return this.modeloTicket.find({ event: eventId }).sort({ createdAt: -1 }).lean();
   }
 
-  async findById(id) {
+  async obtenerPorId(id) {
     return this.modeloTicket.findById(id).lean();
   }
 
-  async cancel(id, cancelledAt) {
+  async obtenerPorIdConDetalles(id) {
+    return this.modeloTicket
+      .findById(id)
+      .populate('user', 'email')
+      .populate('event', 'title date location')
+      .lean();
+  }
+
+  async cancelar(id, cancelledAt) {
     return this.modeloTicket
       .findByIdAndUpdate(
         id,

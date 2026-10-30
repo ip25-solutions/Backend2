@@ -1,25 +1,25 @@
-export class EventRepository {
-  constructor(eventDAO) {
-    this.eventDAO = eventDAO;
+export class RepositorioEventos {
+  constructor(eventosDao) {
+    this.eventosDao = eventosDao;
   }
 
-  async findMany(opciones) {
-    return this.eventDAO.findMany(opciones);
+  async obtenerTodos(opciones) {
+    return this.eventosDao.obtenerTodos(opciones);
   }
 
-  async findById(id) {
-    return this.eventDAO.findById(id);
+  async obtenerPorId(id) {
+    return this.eventosDao.obtenerPorId(id);
   }
 
-  async create(datosEvento) {
-    return this.eventDAO.create(datosEvento);
+  async crear(datosEvento) {
+    return this.eventosDao.crear(datosEvento);
   }
 
-  async update(id, datosEvento) {
-    return this.eventDAO.update(id, datosEvento);
+  async actualizar(id, datosEvento) {
+    return this.eventosDao.actualizar(id, datosEvento);
   }
 
-  async changeStatus(id, status) {
-    return this.eventDAO.changeStatus(id, status);
+  async actualizarEstado(id, status) {
+    return this.eventosDao.actualizarEstado(id, status);
   }
 }

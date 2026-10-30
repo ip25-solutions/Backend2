@@ -16,7 +16,7 @@ const esquemaTicket = new mongoose.Schema(
     status: {
       type: String,
       enum: Object.values(ESTADOS_TICKET),
-      default: ESTADOS_TICKET.CONFIRMADO
+      default: ESTADOS_TICKET.ACTIVO
     },
     quantity: {
       type: Number,
@@ -44,6 +44,12 @@ const esquemaTicket = new mongoose.Schema(
   }
 );
 
-esquemaTicket.index({ user: 1, event: 1, status: 1 });
+esquemaTicket.index(
+  { user: 1, event: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: ESTADOS_TICKET.ACTIVO }
+  }
+);
 
 export const Ticket = mongoose.model('Ticket', esquemaTicket);
