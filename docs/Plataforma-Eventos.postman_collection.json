@@ -1,0 +1,154 @@
+{
+  "info": {
+    "name": "Plataforma de Eventos - Entrega Final",
+    "description": "Flujo de autenticación, eventos, inscripciones, roles y errores de la API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "email", "value": "user@mail.com" },
+    { "key": "password", "value": "Secreta123" },
+    { "key": "eventId", "value": "" },
+    { "key": "ticketId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Sesiones",
+      "item": [
+        {
+          "name": "Registrar user",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Usuario\",\n  \"last_name\": \"Prueba\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": "{{baseUrl}}/api/sessions/register"
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/sessions/login"
+          }
+        },
+        {
+          "name": "Usuario actual",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/sessions/current" }
+        },
+        {
+          "name": "Logout",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/sessions/logout" }
+        }
+      ]
+    },
+    {
+      "name": "Eventos",
+      "item": [
+        {
+          "name": "Listado paginado",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/events?status=published&page=2&limit=5&sort=date"
+          }
+        },
+        {
+          "name": "Crear evento",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Congreso Tech 2030\",\n  \"description\": \"Tecnología y desarrollo\",\n  \"category\": \"conference\",\n  \"date\": \"2030-11-20T18:00:00.000Z\",\n  \"location\": \"Montevideo\",\n  \"capacity\": 50,\n  \"price\": 1500\n}"
+            },
+            "url": "{{baseUrl}}/api/events"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "  pm.collectionVariables.set('eventId', pm.response.json().payload.id);",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Obtener evento",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/events/{{eventId}}" }
+        },
+        {
+          "name": "Actualizar evento",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"capacity\": 60\n}" },
+            "url": "{{baseUrl}}/api/events/{{eventId}}"
+          }
+        },
+        {
+          "name": "Publicar evento",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"published\"\n}" },
+            "url": "{{baseUrl}}/api/events/{{eventId}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tickets",
+      "item": [
+        {
+          "name": "Crear inscripción",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"quantity\": 1\n}" },
+            "url": "{{baseUrl}}/api/events/{{eventId}}/tickets"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "  pm.collectionVariables.set('ticketId', pm.response.json().payload.id);",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Duplicado devuelve 409",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"quantity\": 1\n}" },
+            "url": "{{baseUrl}}/api/events/{{eventId}}/tickets"
+          }
+        },
+        {
+          "name": "Mis tickets",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/tickets/my-tickets" }
+        },
+        {
+          "name": "Tickets del evento",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/events/{{eventId}}/tickets" }
+        },
+        {
+          "name": "Cancelar ticket",
+          "request": { "method": "PATCH", "url": "{{baseUrl}}/api/tickets/{{ticketId}}/cancel" }
+        }
+      ]
+    }
+  ]
+}
