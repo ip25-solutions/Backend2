@@ -1,6 +1,6 @@
 # Plataforma de Eventos e Inscripciones
 
-API REST para gestionar eventos e inscripciones. Esta séptima pre-entrega incorpora tickets con control de cupos, prevención de duplicados, cancelación lógica y notificaciones de confirmación y cancelación mediante Nodemailer.
+API REST completa para gestionar eventos e inscripciones. La entrega final integra autenticación, autorización por roles, eventos, tickets con control de cupos, cancelación lógica, notificaciones por email y una arquitectura profesional por capas.
 
 ## Tecnologías
 
@@ -27,7 +27,7 @@ Copiá `.env.example` como `.env` y adaptá los valores a tu entorno:
 ```env
 PORT=8080
 NODE_ENV=development
-MONGO_URI=mongodb+srv://USUARIO:CONTRASENA@CLUSTER.mongodb.net/plataforma_eventos
+MONGO_URL=mongodb+srv://USUARIO:CONTRASENA@CLUSTER.mongodb.net/plataforma_eventos
 JWT_SECRET=clave_secreta_de_desarrollo
 JWT_EXPIRES_IN=1h
 MAIL_HOST=smtp.example.com
@@ -37,13 +37,13 @@ MAIL_PASS=contrasena_smtp
 MAIL_FROM="Plataforma Eventos <eventos@example.com>"
 ```
 
-Reemplazá los marcadores de `MONGO_URI` por los datos de tu clúster de MongoDB Atlas y `JWT_SECRET` por un secreto robusto en el archivo `.env`. Este archivo está excluido del repositorio y nunca se deben guardar credenciales reales en `.env.example`. Por compatibilidad, la aplicación también acepta la variable heredada `MONGO_URL`, pero `MONGO_URI` tiene prioridad.
+Reemplazá los marcadores de `MONGO_URL` por los datos de tu clúster de MongoDB Atlas y `JWT_SECRET` por un secreto robusto en el archivo `.env`. Este archivo está excluido del repositorio y nunca se deben guardar credenciales reales en `.env.example`. La aplicación también acepta la variable heredada `MONGO_URI`, aunque `MONGO_URL` tiene prioridad.
 
 | Variable | Descripción | Valor de ejemplo |
 | --- | --- | --- |
 | `PORT` | Puerto HTTP de la aplicación. | `8080` |
 | `NODE_ENV` | Entorno de ejecución; en `production` activa cookies `secure`. | `development` |
-| `MONGO_URI` | Cadena de conexión de MongoDB. | URI de MongoDB Atlas |
+| `MONGO_URL` | Cadena de conexión de MongoDB. | URI de MongoDB Atlas |
 | `JWT_SECRET` | Secreto utilizado para firmar y validar los JWT. | Clave local sin datos reales |
 | `JWT_EXPIRES_IN` | Vigencia compartida por el JWT y su cookie HTTP Only. | `1h` |
 | `MAIL_HOST` | Host del servidor SMTP. | `smtp.example.com` |
@@ -78,6 +78,20 @@ npm test
 
 Las pruebas ejecutan los flujos de sesiones, eventos, tickets y administración con repositorios y correo simulados, por lo que no escriben datos en MongoDB ni envían emails reales.
 
+## Colección de Postman
+
+Importá [`docs/Plataforma-Eventos.postman_collection.json`](docs/Plataforma-Eventos.postman_collection.json) en Postman. La colección define `baseUrl`, credenciales de prueba, `eventId` y `ticketId`; las respuestas de creación guardan automáticamente los identificadores.
+
+Para recorrer el flujo completo:
+
+1. Registrá las tres cuentas y asigná los roles con el procedimiento de “Usuarios de prueba”.
+2. Iniciá sesión como organizer, creá el evento y publicalo.
+3. Iniciá sesión como user, creá la inscripción y repetila para comprobar el `409`.
+4. Consultá los tickets propios, cancelá el ticket y verificá que el cupo vuelva a quedar disponible.
+5. Alterná entre organizer y admin para comprobar propiedad, `403` y modificación administrativa.
+
+Postman conserva automáticamente la cookie `currentUser` para `localhost`. Las credenciales reales de MongoDB, JWT y SMTP permanecen exclusivamente en `.env`.
+
 ## Estructura
 
 ```text
@@ -87,13 +101,15 @@ src/
 ├── config/          # Entorno, Passport, cookies, conexión y dependencias
 ├── routes/          # Definición de endpoints
 ├── controllers/     # Entrada y salida HTTP; JWT y cookie tras el login
-├── services/        # Reglas de negocio de eventos
+├── services/        # Reglas de negocio de sesiones, usuarios, eventos y tickets
 ├── repositories/    # Abstracción de acceso a datos
 ├── dao/             # Operaciones directas con Mongoose
+├── dto/             # Contratos públicos de usuario, evento y ticket
 ├── models/          # Esquemas y modelos de MongoDB
 ├── middlewares/     # Adaptación de Passport y manejo centralizado de errores
 └── utils/           # Hash con bcrypt y firma de JWT
 test/
+├── architecture.dto.test.js
 ├── authorization.middleware.test.js
 ├── correo.service.test.js
 ├── events.authorization.test.js
@@ -105,15 +121,17 @@ test/
 El registro y el login respetan el siguiente flujo:
 
 ```text
-Router → Passport → Estrategia → Repository → DAO → Mongoose → MongoDB → Controller → Response
+Router → Middleware o Passport → Controller/Strategy → Service → Repository → DAO → Mongoose
 ```
+
+Los modelos de Mongoose se importan exclusivamente en los DAO. Los services consumen repositories, los controllers coordinan la entrada y salida HTTP, y todos los usuarios, eventos y tickets se serializan mediante DTO antes de formar una respuesta.
 
 La lógica de autenticación se distribuye de esta manera:
 
 - `config/passport.config.js`: centraliza las estrategias `register`, `login` y `current`.
 - `app.js`: ejecuta una única configuración e inicializa Passport con `passport.initialize()`.
 - `middlewares/passport.middleware.js`: adapta los fallos de Passport al contrato JSON de la API.
-- `middlewares/auth.middleware.js`: valida el JWT de la cookie y completa `request.user`.
+- `middlewares/auth.middleware.js`: valida el JWT en las demás rutas privadas y completa `request.user`.
 - `middlewares/authorize.middleware.js`: compara el rol autenticado con los roles permitidos.
 - `controllers/sessions.controller.js`: genera el JWT después del login y administra la cookie.
 - `utils/hash.js`: hashea y compara contraseñas con bcrypt.
@@ -130,7 +148,7 @@ Todas las estrategias se registran en `src/config/passport.config.js`; `app.js` 
 | `login` | Local | Normaliza el email, busca el hash y valida la contraseña con bcrypt sin revelar qué credencial falló. |
 | `current` | JWT | Extrae el token de la cookie `currentUser`, valida firma y expiración, y asigna `{ id, email, role }` a `request.user`. |
 
-Las estrategias solo autentican o registran al usuario. En particular, `login` no genera el JWT: esa responsabilidad permanece en el controller, que también configura la cookie HTTP Only. `logout` elimina la cookie directamente y no pasa por Passport.
+Las estrategias delegan las reglas de registro y login en `ServicioSesiones`. En particular, `login` no genera el JWT: esa responsabilidad permanece en el controller, que también configura la cookie HTTP Only. `current` sí se aplica directamente sobre `GET /api/sessions/current`; `logout` elimina la cookie y no pasa por Passport.
 
 La función `configurarPassport()` concentra el registro de estrategias. Para incorporar providers externos como Google o GitHub se agregan sus estrategias en ese archivo y sus rutas correspondientes, sin modificar la inicialización de `app.js`.
 
@@ -149,7 +167,19 @@ El modelo admite los roles `user`, `organizer` y `admin`; el registro público s
 | Consultar tickets de cualquier evento | ❌ | ❌ | ✅ |
 | Ver todos los usuarios | ❌ | ❌ | ✅ |
 
-Las consultas de eventos son públicas. Las rutas privadas ejecutan primero `autenticar`, que valida la cookie y carga el usuario, y luego `autorizar`, que comprueba el rol. En las modificaciones existe además una validación de propiedad: un organizer solo puede operar sobre recursos cuyo campo `organizer` coincida con su identificador; un admin puede operar sobre cualquiera.
+Las consultas de eventos son públicas. Las rutas privadas validan la cookie con Passport `current` o con `autenticar`, según la ruta, y luego `autorizar` comprueba el rol. En las modificaciones existe además una validación de propiedad: un organizer solo puede operar sobre recursos cuyo campo `organizer` coincida con su identificador; un admin puede operar sobre cualquiera.
+
+### Usuarios de prueba
+
+El registro público siempre crea usuarios `user`. Para preparar cuentas locales de prueba, registrá tres usuarios mediante `/api/sessions/register` y cambiá únicamente los roles administrativos desde `mongosh`:
+
+```javascript
+use plataforma_eventos
+db.users.updateOne({ email: 'organizer@mail.com' }, { $set: { role: 'organizer' } })
+db.users.updateOne({ email: 'admin@mail.com' }, { $set: { role: 'admin' } })
+```
+
+La cuenta `user@mail.com` conserva el rol predeterminado. No existe un endpoint público para elevar privilegios.
 
 ### Diferencia entre 401 y 403
 
@@ -178,6 +208,7 @@ La aplicación persiste referencias entre documentos; no embebe el usuario compl
 | --- | --- |
 | `users` | `first_name`, `last_name`, `email`, `password`, `role`, `createdAt`, `updatedAt` |
 | `events` | `title`, `description`, `category`, `date`, `location`, `capacity`, `price`, `status`, `organizer`, `createdAt`, `updatedAt` |
+| `tickets` | `user`, `event`, `status`, `quantity`, `reservationCode`, `createdAt`, `cancelledAt` |
 
 `User.role` admite `user`, `organizer` y `admin`. `Event.organizer` es un ObjectId con referencia a `User`; nunca contiene un objeto de usuario embebido.
 
@@ -248,9 +279,9 @@ Ticket relaciona un usuario con un evento mediante referencias ObjectId; no alma
 | --- | --- | --- |
 | `user` | ObjectId | Referencia al usuario autenticado |
 | `event` | ObjectId | Referencia al evento solicitado |
-| `status` | string | `confirmed`, `pending` o `cancelled` |
+| `status` | string | `active` o `cancelled` |
 | `quantity` | number | Entero mayor que cero |
-| `reservationCode` | string | UUID único generado por el backend |
+| `reservationCode` | string | Código único con formato `EVT-XXXX` generado por el backend |
 | `createdAt` | date | Generado automáticamente |
 | `cancelledAt` | date o null | Se completa al cancelar |
 
@@ -259,14 +290,14 @@ Ticket relaciona un usuario con un evento mediante referencias ObjectId; no alma
 1. El middleware valida la sesión y el service busca el evento.
 2. El evento debe estar `published`, no haber finalizado y conservar una fecha futura.
 3. El service valida `quantity`, comprueba que el usuario no tenga otro ticket activo y suma los cupos ocupados.
-4. Los tickets `confirmed` y `pending` ocupan cupo; los `cancelled` no se cuentan.
-5. Si existe disponibilidad, se crea un ticket `confirmed` con un código de reserva único.
+4. Los tickets `active` ocupan cupo; los `cancelled` no se cuentan.
+5. Si existe disponibilidad, se crea un ticket `active` con un código de reserva único.
 6. Nodemailer envía la confirmación a la dirección incluida en la sesión autenticada.
 7. Al cancelar, Nodemailer envía el aviso al dueño del ticket. Si la acción la realiza un admin, el destinatario continúa siendo el usuario inscripto.
 
 Solo se permite una inscripción activa por usuario y evento. Una cancelación cambia el estado a `cancelled`, registra `cancelledAt` y conserva el documento; como deja de contarse entre los estados activos, el cupo queda disponible automáticamente.
 
-La capacidad máxima del evento no se decrementa físicamente. Los cupos ocupados se calculan sumando `quantity` únicamente en tickets `confirmed` o `pending`; por eso una cancelación restituye el cupo sin modificar el documento Event.
+La capacidad máxima del evento no se decrementa físicamente. Los cupos ocupados se calculan sumando `quantity` únicamente en tickets `active`; por eso una cancelación restituye el cupo sin modificar el documento Event. Un índice único parcial impide que el mismo usuario tenga dos tickets activos para el mismo evento.
 
 ### Consultas y privacidad
 
@@ -274,19 +305,20 @@ La capacidad máxima del evento no se decrementa físicamente. Los cupos ocupado
 
 El listado `GET /api/events/:eid/tickets` conserva la referencia `user` como identificador y solo puede consultarlo el organizer dueño del evento o un admin.
 
-### Evidencias de cumplimiento de la Pre-entrega 7
+### Evidencias de cumplimiento de la entrega final
 
 | Criterio | Implementación | Prueba automatizada |
 | --- | --- | --- |
-| Modelo Ticket con referencias, estados y código de reserva | `src/models/Ticket.js` | Creación confirmada en `test/tickets.flow.test.js` |
+| Modelo Ticket con referencias, estados y código de reserva | `src/models/Ticket.js` | Creación activa en `test/tickets.flow.test.js` |
 | Inscripción autenticada y validaciones de negocio | `src/services/tickets.service.js` | Sesión, evento inexistente/no disponible, cantidad, cupos y duplicados |
 | Cupos calculados solo con tickets activos | `src/dao/tickets.dao.js` | Falta de cupo y reutilización después de cancelar |
 | Cancelación lógica, propiedad y administración | Service, repository y DAO de tickets | Cancelación propia, ajena, repetida y por admin |
 | Tickets propios con evento poblado | `TicketsDao.obtenerPorUsuario` | Respuesta limitada a `title`, `date` y `location` |
 | Listado de tickets por organizer propietario o admin | `GET /api/events/:eid/tickets` | Casos `user`, organizer ajeno, propietario y admin |
 | Email de confirmación y cancelación | `src/services/correo.service.js` | Flujo de tickets y `test/correo.service.test.js` |
+| DTO y límites de arquitectura | `src/dto/` y capas de la aplicación | `test/architecture.dto.test.js` |
 
-La suite se ejecuta con `npm test`. Las pruebas reemplazan MongoDB y SMTP por dobles controlados, validan los códigos HTTP y comprueban que ambos emails se soliciten con el destinatario correcto. Para verificar la entrega real de correo, configurá un servidor SMTP en `.env` y seguí los pasos 16 y 19 de la lista de comprobaciones.
+La suite se ejecuta con `npm test` y contiene 43 casos. Las pruebas reemplazan MongoDB y SMTP por dobles controlados, validan los códigos HTTP, los DTO, los límites entre capas y ambos envíos de email. Para verificar la integración real, configurá MongoDB y SMTP en `.env`, importá la colección de Postman y seguí la lista de comprobaciones.
 
 ## Registro de usuarios
 
@@ -384,7 +416,7 @@ El encabezado `Set-Cookie` contiene `currentUser`. Si el email no existe, falta 
 
 ### `GET /api/sessions/current`
 
-Utiliza el middleware `autenticar`: requiere una cookie válida, deja el usuario autenticado en `request.user` y devuelve exclusivamente `id`, `email` y `role`.
+Utiliza la estrategia Passport `current`: extrae el JWT de la cookie, valida su firma y expiración, deja el usuario autenticado en `request.user` y devuelve exclusivamente `id`, `email` y `role`.
 
 Solicitud:
 
@@ -526,7 +558,7 @@ curl http://localhost:8080/api/events/665f2a000000000000000001
 {
   "status": "success",
   "payload": {
-    "_id": "665f2a000000000000000001",
+    "id": "665f2a000000000000000001",
     "title": "Node.js para principiantes",
     "description": "Introducción al desarrollo de APIs",
     "category": "workshop",
@@ -564,7 +596,7 @@ curl -X PUT http://localhost:8080/api/events/665f2a000000000000000001 \
 {
   "status": "success",
   "payload": {
-    "_id": "665f2a000000000000000001",
+    "id": "665f2a000000000000000001",
     "title": "Node.js para principiantes",
     "description": "Introducción al desarrollo de APIs",
     "category": "workshop",
@@ -591,7 +623,7 @@ curl -X PATCH http://localhost:8080/api/events/665f2a000000000000000001/status \
 {
   "status": "success",
   "payload": {
-    "_id": "665f2a000000000000000001",
+    "id": "665f2a000000000000000001",
     "status": "cancelled"
   }
 }
@@ -612,12 +644,12 @@ curl -X POST http://localhost:8080/api/events/665f2a000000000000000001/tickets \
 {
   "status": "success",
   "payload": {
-    "_id": "675f2a000000000000000001",
+    "id": "675f2a000000000000000001",
     "user": "665f2a000000000000000010",
     "event": "665f2a000000000000000001",
-    "status": "confirmed",
+    "status": "active",
     "quantity": 2,
-    "reservationCode": "a71fa393-80e0-4d7f-a42f-b34235068092",
+    "reservationCode": "EVT-7QK2",
     "cancelledAt": null
   }
 }
@@ -649,7 +681,7 @@ La respuesta conserva el ticket con `status: "cancelled"` y `cancelledAt` con la
 
 ## Pruebas manuales por rol
 
-La autenticación utiliza un JWT dentro de la cookie HTTP Only `currentUser`. Los siguientes ejemplos guardan esa cookie con `-c` y la reutilizan con `-b`; no es necesario copiar el token manualmente. Se asume que existen cuentas de prueba con cada rol, ya que el registro público siempre crea usuarios `user`.
+La autenticación utiliza un JWT dentro de la cookie HTTP Only `currentUser`. Los siguientes ejemplos guardan esa cookie con `-c` y la reutilizan con `-b`; no es necesario copiar el token manualmente. Prepará las cuentas con el procedimiento de “Usuarios de prueba”, ya que el registro público siempre crea usuarios `user`.
 
 Login como user:
 

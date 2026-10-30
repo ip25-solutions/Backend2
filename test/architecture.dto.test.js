@@ -23,6 +23,7 @@ const listarJavaScript = async (directorio) => {
 };
 
 test('los DTO normalizan identificadores y excluyen campos internos', () => {
+  const objectIdSimulado = { toString: () => 'organizer-1' };
   const usuario = crearUsuarioDto({
     _id: 'usuario-1',
     first_name: 'Ana',
@@ -42,7 +43,7 @@ test('los DTO normalizan identificadores y excluyen campos internos', () => {
     capacity: 50,
     price: 100,
     status: 'published',
-    organizer: { _id: 'organizer-1', password: 'otro-secreto' },
+    organizer: objectIdSimulado,
     __v: 2
   });
   const ticket = crearTicketDto({
