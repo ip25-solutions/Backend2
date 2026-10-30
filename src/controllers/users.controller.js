@@ -7,14 +7,14 @@ const convertirUsuarioPublico = (usuario) => ({
 });
 
 export class UsersController {
-  constructor(usersRepository) {
-    this.usersRepository = usersRepository;
+  constructor(servicioUsuarios) {
+    this.servicioUsuarios = servicioUsuarios;
     this.listar = this.listar.bind(this);
   }
 
   async listar(request, response, next) {
     try {
-      const usuarios = await this.usersRepository.findAll();
+      const usuarios = await this.servicioUsuarios.listar();
       response.status(200).json({
         status: 'success',
         payload: usuarios.map(convertirUsuarioPublico)
