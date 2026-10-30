@@ -1,10 +1,8 @@
 export const ESTADOS_TICKET = Object.freeze({
-  CONFIRMADO: 'confirmed',
-  PENDIENTE: 'pending',
+  ACTIVO: 'active',
   CANCELADO: 'cancelled'
 });
 
 export const ESTADOS_TICKET_ACTIVO = Object.freeze([
-  ESTADOS_TICKET.CONFIRMADO,
-  ESTADOS_TICKET.PENDIENTE
+  ESTADOS_TICKET.ACTIVO
 ]);

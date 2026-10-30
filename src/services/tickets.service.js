@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 import { ESTADOS_EVENTO } from '../config/eventos.js';
 import { ESTADOS_TICKET } from '../config/tickets.js';
 import { ROLES } from '../config/permisos.js';
@@ -32,7 +32,7 @@ export class ServicioTickets {
     );
 
     if (ticketActivo) {
-      throw new ErrorAplicacion('Ya tenés una inscripción activa para este evento', 409);
+      throw new ErrorAplicacion('Ya tenés una inscripción activa a este evento', 409);
     }
 
     const cantidadOcupada = await this.repositorioTickets.obtenerCantidadActiva(eventId);
@@ -48,9 +48,9 @@ export class ServicioTickets {
     const ticket = await this.repositorioTickets.crear({
       user: usuario.id,
       event: eventId,
-      status: ESTADOS_TICKET.CONFIRMADO,
+      status: ESTADOS_TICKET.ACTIVO,
       quantity,
-      reservationCode: randomUUID(),
+      reservationCode: this.generarCodigoReserva(),
       cancelledAt: null
     });
 
@@ -61,6 +61,16 @@ export class ServicioTickets {
     });
 
     return ticket;
+  }
+
+  generarCodigoReserva() {
+    const alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const sufijo = Array.from(
+      { length: 4 },
+      () => alfabeto[randomInt(0, alfabeto.length)]
+    ).join('');
+
+    return `EVT-${sufijo}`;
   }
 
   async listarPropios(userId) {

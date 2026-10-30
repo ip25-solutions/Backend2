@@ -17,6 +17,13 @@ export const manejarErrores = (error, solicitud, respuesta, siguiente) => {
       return respuesta.status(409).json({ status: 'error', message: 'El email ya está registrado' });
     }
 
+    if (error.keyPattern?.user && error.keyPattern?.event) {
+      return respuesta.status(409).json({
+        status: 'error',
+        message: 'Ya tenés una inscripción activa a este evento'
+      });
+    }
+
     return respuesta.status(409).json({ status: 'error', message: 'El recurso ya existe' });
   }
 
